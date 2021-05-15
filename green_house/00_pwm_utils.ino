@@ -51,6 +51,7 @@ struct SliderValsInfo getSliderVals(){
 
 
 void setSliderVal(int sliderID, int val){
+  ledcWrite(sliderID, val);
   sliderVals[sliderID] = val;
 }
 

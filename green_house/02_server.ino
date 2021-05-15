@@ -1,11 +1,6 @@
 //#include "00_pwm_utils"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
-// include library to read and write from flash memory
-#include <EEPROM.h>
-
-// define the number of bytes you want to access
-#define EEPROM_SIZE 1
 
 // Aux Vars for http calls
 int sliderValueAux = 0;
@@ -19,7 +14,7 @@ const char* PARAM_INPUT_ID = "id";
 int getSliderID = 0;
 
 const char* PARAM_INPUT_CB_STATE = "state";
-int switchState = 0;
+
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -64,7 +59,8 @@ const char index_html[] PROGMEM = R"rawliteral(
   </p>
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
-  %BUTTONPLACEHOLDER%
+  <h3>Mode selector</h3>
+  <h4>1 %BUTTONPLACEHOLDER% 2</h4>
 </body>
 <script>
 function updateSliderPWM(element, slider_id) {
@@ -144,7 +140,7 @@ console.log("done setuping");
 )rawliteral";
 
 String switchStateStr(){
-    if(switchState){
+    if(getStage()){
       return "checked";
     }
     else {
@@ -164,8 +160,7 @@ String processor(const String& var){
     String buttons ="";
     for(int i=1; i<=1; i++){
       String relayStateValue = switchStateStr();
-      buttons+= "<h4>Switch " + String(i) + 
-      "</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"" 
+      buttons+= "<label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"" 
       + String(i) + "\" "+ relayStateValue +"><span class=\"slider\"></span></label>";
     }
     return buttons;
@@ -187,11 +182,6 @@ String processor(const String& var){
 }
 
 void setupServer(){
-   // initialize EEPROM with predefined size
-  EEPROM.begin(EEPROM_SIZE);
-
-  switchState = EEPROM.read(0);
-  
    // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/html", index_html, processor);
@@ -229,9 +219,7 @@ void setupServer(){
     if (request->hasParam(PARAM_INPUT)) {
       sliderValueAux = request->getParam(PARAM_INPUT)->value().toInt();
       sliderID = request->getParam(PARAM_INPUT_ID)->value().toInt();
-      //sliderVals[sliderID] = sliderValueAux;
       setSliderVal(sliderID, sliderValueAux);
-      ledcWrite(sliderID, sliderValueAux);
       Serial.println("L"+String(sliderID)+" V"+String(sliderValueAux));
     }
     else {
@@ -246,10 +234,7 @@ void setupServer(){
     // GET input1 value on <ESP_IP>/update?relay=<inputMessage>
     if (request->hasParam(PARAM_INPUT_CB_STATE)) {
       inputMessage = request->getParam(PARAM_INPUT_CB_STATE)->value();
-      switchState = inputMessage.toInt();
-      EEPROM.write(0, switchState);
-      EEPROM.commit();
-      Serial.print("CB "+inputMessage);
+      setStage(inputMessage.toInt());
     }
     else {
       Serial.println("CB No message sent");
