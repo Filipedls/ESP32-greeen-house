@@ -8,7 +8,6 @@ unsigned long epochTime;
 
 // Function that gets current epoch time
 struct tm getTime() {
-  // time_t now;  //  epoch time
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     Serial.println("Failed to obtain time");
@@ -16,7 +15,6 @@ struct tm getTime() {
   }
   //time(&now);
   Serial.println(&timeinfo, "It's %A, %B %d %Y %H:%M:%S");
-  
   return timeinfo;
 }
 
@@ -48,4 +46,6 @@ int getHour() {
 void setupTime() {
   //before  do: initWiFi();
   configTime(0, 0, ntpServer);
+  // Berlin timeZone
+  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
 }
