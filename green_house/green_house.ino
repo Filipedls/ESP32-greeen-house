@@ -8,14 +8,12 @@ void setup(){
   setupDHT();
   setupWiFi();
   setupTime();
-  stagesSetup();
+  setupStages();
   setupServer();
 }
-
-
  
 void loop(){
   // delay(2000);
   updateStage();
-  delay(50000);
+  delay(600000);
 }

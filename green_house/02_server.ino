@@ -1,4 +1,5 @@
 //#include "00_pwm_utils"
+//#include "01_stages"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
@@ -59,8 +60,8 @@ const char index_html[] PROGMEM = R"rawliteral(
   </p>
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
-  <h3>Mode selector</h3>
-  <h4>1 %BUTTONPLACEHOLDER% 2</h4>
+  <h3>Grow Stage</h3>
+  %BUTTONPLACEHOLDER%
 </body>
 <script>
 function updateSliderPWM(element, slider_id) {
@@ -100,18 +101,6 @@ setInterval(function ( ) {
   xhttp.send();
 }, 60000 ) ;
 
-function getLightVal(slider_id) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("textSliderValueLight"+slider_id).innerHTML = this.responseText;
-      document.getElementById("pwmSlider"+x).value = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/slidervalue?id="+slider_id, true);
-  xhttp.send();    
-  console.log("interval id: %d", slider_id);
-}
 function getAllLightVal() {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
@@ -123,17 +112,12 @@ function getAllLightVal() {
       }
     }
   };
-  xhttp.open("GET", "/slidervalue", true);
+  xhttp.open("GET", "/slidervalues", true);
   xhttp.send();    
   console.log("interval all");
 }
 //setTimeout(getAllLightVal, 600000);
 //getAllLightVal();
-//timer for light vals
-//for (var x = 0; x < 6; x++) {
-//  setTimeout(getLightVal, 55000, x); // x - slider_id
-//  getLightVal(x);
-//}
 console.log("done setuping");
 </script>
 </html>
@@ -159,17 +143,19 @@ String processor(const String& var){
   } else if(var == "BUTTONPLACEHOLDER"){
     String buttons ="";
     for(int i=1; i<=1; i++){
-      String relayStateValue = switchStateStr();
-      buttons+= "<label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"" 
-      + String(i) + "\" "+ relayStateValue +"><span class=\"slider\"></span></label>";
+      String stateValue = switchStateStr();
+      buttons+= "<h4>"+String(all_modes[0].sname)+
+      " <label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"" 
+      + String(i) + "\" "+ stateValue +"><span class=\"slider\"></span></label> "+
+      String(all_modes[1].sname)+"</h4>";
     }
     return buttons;
   } else if (var == "SLIDERSPLACEHOLDER"){
     String buttons ="";
-    SliderValsInfo sliderInfo = getSliderVals();
+    pwmValsInfo sliderInfo = getPwmVals();
     for(int i=0; i < sliderInfo.lenght; i++){
       String sliderVal = String(sliderInfo.vals[i]);
-      if(i == sliderInfo.lenght-1){
+      if(i == sliderInfo.lenght-NFANS){
         buttons+="<h3>Fan</h3>";
       }
       buttons+= "<h4>" + String(i) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
@@ -193,24 +179,17 @@ void setupServer(){
     request->send_P(200, "text/plain", readDHTHumidity().c_str());
   });
 
-  // Send a the value of a light /slidervalue?id=<lightid>
-  server.on("/slidervalue", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    // GET input1 value on <ESP_IP>/slidervalue?id=<inputMessage>
-    SliderValsInfo sliderInfo = getSliderVals();
-    if (request->hasParam(PARAM_INPUT_ID)) {
-      getSliderID = request->getParam(PARAM_INPUT_ID)->value().toInt();
+  // Send a the value of a light /slidervalue
+  server.on("/slidervalues", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    // GET input1 value on <ESP_IP>/slidervalues
+    pwmValsInfo sliderInfo = getPwmVals();
 
-      request->send_P(200, "text/plain", String(sliderInfo.vals[getSliderID]).c_str());
-      Serial.println("gL"+String(getSliderID)+" V"+String(sliderInfo.vals[getSliderID]));
-    }
-    else {
-      sprintf(slidarValsChar, "%i,%i,%i,%i,%i,%i", 
-        sliderInfo.vals[0], sliderInfo.vals[1], sliderInfo.vals[2],
-        sliderInfo.vals[3], sliderInfo.vals[4], sliderInfo.vals[5]);
+    sprintf(slidarValsChar, "%i,%i,%i,%i,%i,%i", 
+      sliderInfo.vals[0], sliderInfo.vals[1], sliderInfo.vals[2],
+      sliderInfo.vals[3], sliderInfo.vals[4], sliderInfo.vals[5]);
 
-      request->send_P(200, "text/plain", slidarValsChar);
-      Serial.println("agL "+String(slidarValsChar));
-    }
+    request->send_P(200, "text/plain", slidarValsChar);
+    Serial.println("agL "+String(slidarValsChar));
   });
 
   // Send a GET request to <ESP_IP>/slider?value=<inputMessage>
@@ -219,8 +198,8 @@ void setupServer(){
     if (request->hasParam(PARAM_INPUT)) {
       sliderValueAux = request->getParam(PARAM_INPUT)->value().toInt();
       sliderID = request->getParam(PARAM_INPUT_ID)->value().toInt();
-      setSliderVal(sliderID, sliderValueAux);
-      Serial.println("L"+String(sliderID)+" V"+String(sliderValueAux));
+      setPwmVal(sliderID, sliderValueAux);
+      Serial.println("pwmID "+String(sliderID)+" V"+String(sliderValueAux));
     }
     else {
       Serial.println("No message sent");

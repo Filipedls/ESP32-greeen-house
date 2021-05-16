@@ -14,7 +14,7 @@ struct tm getTime() {
     return timeinfo;
   }
   //time(&now);
-  Serial.println(&timeinfo, "It's %A, %B %d %Y %H:%M:%S");
+  //Serial.println(&timeinfo, "It's %A, %B %d %Y %H:%M:%S");
   return timeinfo;
 }
 

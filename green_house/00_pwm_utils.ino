@@ -2,23 +2,24 @@ const int resolution = 8;
 
 /// PWM CONFIG
 
+#define NLIGHTS 5
+#define NFANS 1
+#define NPWMS (NLIGHTS + NFANS)
+
+const int n = 300;
+int pwmChannels[NPWMS] = {0, 1, 2, 3, 4, 5};
+int pwmPins[NPWMS] = {15, 2, 4, 5, 18, 23};
+// others: 27, 19
+int pwmVals[NPWMS] = {0, 10, 20, 30, 40, 44};
+
 // setting PWM properties for light
-const int freq = 300;
-//const int ledChannel = 0;
-// the number of the LED pin
-//const int ledPin = 27;  // 16 corresponds to GPIO16
+const int freq_lights = 300;
 
-int nLights =  5;
-int ledChannelVals[5] = {0, 1, 2, 3, 4};
-int ledPinsVals[5] = {27, 1, 2, 3, 4};
-
-// Setting pwm for fan
+// Setting pwm properties for fan
 // https://www.mikrocontroller.net/attachment/361299/noctua_nf_a14_industrialPPC_3000_pwm_specs_en.pdf
-const int freq_fan = 10000;
-const int channel_fan = 5;
-const int pin_fan = 26;
+const int freq_fans = 10000;
 
-// This initialises the six servos
+
 void PinSetup(int freq, int channel, int pin) {
   // configure PWM functionalitites
   ledcSetup(channel, freq, resolution);
@@ -32,39 +33,44 @@ void PinWrite(int channel, int dutyCycle) {
 }
 
 // server methods
-#define NSLIDERS 6 
-int sliderVals[NSLIDERS] = {0, 10, 20, 30, 40, 44};
-struct SliderValsInfo {
-    int vals[NSLIDERS];
+struct pwmValsInfo {
+    int vals[NPWMS];
     size_t lenght;
 };
 
 
-struct SliderValsInfo getSliderVals(){
-  SliderValsInfo sliderInfo;
-  for(int i=0; i<NSLIDERS;i++){
-    sliderInfo.vals[i] = sliderVals[i];
+struct pwmValsInfo getPwmVals(){
+  pwmValsInfo pwmInfo;
+  for(int i=0; i<NPWMS;i++){
+    pwmInfo.vals[i] = pwmVals[i];
   }
-  sliderInfo.lenght = NSLIDERS;
-  return sliderInfo;
+  pwmInfo.lenght = NPWMS;
+  return pwmInfo;
 }
 
 
-void setSliderVal(int sliderID, int val){
-  ledcWrite(sliderID, val);
-  sliderVals[sliderID] = val;
+void setPwmVal(int pwmID, int val){
+  ledcWrite(pwmID, val);
+  pwmVals[pwmID] = val;
+}
+
+
+void setPwmVals(const int vals[]){
+  for(int i=0; i<NPWMS;i++){
+    setPwmVal(i, vals[i]);
+  }
 }
 
 
 void  setupPWM(){
   // configure LED PWM functionalitites
-  for(int i = 0; i <= 0; i++){   // nLights
-    PinSetup(freq, ledChannelVals[i], ledPinsVals[i]);
-    ledcWrite(ledChannelVals[i], 0);
+  for(int i = 0; i < NLIGHTS; i++){
+    PinSetup(freq_lights, pwmChannels[i], pwmPins[i]);
+    ledcWrite(pwmChannels[i], 0);
   }
-  //PinSetup(freq, ledChannel, ledPin);
-  //ledcWrite(ledChannel, 0);
-  // fan PWM
-  PinSetup(freq_fan, channel_fan, pin_fan);
-  ledcWrite(channel_fan, 0);
+  // configure Fan PWM functionalitites
+  for(int i = NLIGHTS; i < NPWMS; i++){
+    PinSetup(freq_fans, pwmChannels[i], pwmPins[i]);
+    ledcWrite(pwmChannels[i], 0);
+  }
 }
