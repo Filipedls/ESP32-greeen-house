@@ -9,6 +9,9 @@ int selectedStage = 0;
 
 const int pwmValsOFF[NPWMS] = {0,0,0,0,0,0};
 
+
+const int sensorPin = 27;
+
 struct StageCfg {
     char sname[20]; 
     int pwmVals[NPWMS];
@@ -30,7 +33,7 @@ StageCfg all_modes[2] {
     // PWM
     {9,8,7,6,5,4},
     // hour ON and OFF
-    9,19
+    9,23
   }
 };
 
@@ -72,7 +75,12 @@ void updateStage(){
   }
   
   processStage(selStageCfg, isStageON);
-  Serial.println("done  ON "+String(isStageON));
+  Serial.println("state "+String(isStageON?"ON":"OFF"));
+}
+
+
+void IRAM_ATTR attachHaddler() {
+  Serial.println("event sensor");
 }
 
 
@@ -80,4 +88,12 @@ void setupStages(){
   // initialize EEPROM with predefined size
   EEPROM.begin(EEPROM_SIZE);
   selectedStage = EEPROM.read(EEPROM_IDX);
+
+  // attachInterrupt example
+  // button mode INPUT
+  pinMode(sensorPin, INPUT_PULLUP);
+  // CHANGE or RISING mode
+  attachInterrupt(digitalPinToInterrupt(sensorPin), attachHaddler, CHANGE);
+
+  
 }

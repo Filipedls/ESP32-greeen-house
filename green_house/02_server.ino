@@ -58,6 +58,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <span id="humidity">%HUMIDITY%</span>
     <sup class="units">&percnt;</sup>
   </p>
+  <h5>%DATETIME%</h5>
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
   <h3>Grow Stage</h3>
@@ -74,6 +75,11 @@ function updateSliderPWM(element, slider_id) {
 
 function toggleCheckbox(element) {
   var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      getAllLightVal();
+    }
+  };
   if(element.checked){ xhr.open("GET", "/updatecheckbox?state=1", true); }
   else { xhr.open("GET", "/updatecheckbox?state=0", true); }
   xhr.send();
@@ -110,6 +116,7 @@ function getAllLightVal() {
         document.getElementById("textSliderValueLight"+x).innerHTML = light_vals[x];
         document.getElementById("pwmSlider"+x).value = light_vals[x];
       }
+      console.log("updated lights");
     }
   };
   xhttp.open("GET", "/slidervalues", true);
@@ -163,6 +170,8 @@ String processor(const String& var){
       "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h4>";
     }
     return buttons;
+  } else if (var == "DATETIME"){
+    return getDateTime();
   }
   return String();
 }
@@ -184,12 +193,20 @@ void setupServer(){
     // GET input1 value on <ESP_IP>/slidervalues
     pwmValsInfo sliderInfo = getPwmVals();
 
-    sprintf(slidarValsChar, "%i,%i,%i,%i,%i,%i", 
-      sliderInfo.vals[0], sliderInfo.vals[1], sliderInfo.vals[2],
-      sliderInfo.vals[3], sliderInfo.vals[4], sliderInfo.vals[5]);
+    //slidarValsChar = "";
+    sprintf(slidarValsChar, "%i", sliderInfo.vals[0]);
+    for(int i=1; i < sliderInfo.lenght; i++){
+      //slidarValsChar+= String(sliderInfo.vals[i]);
+      sprintf(slidarValsChar, "%s,%i", slidarValsChar, sliderInfo.vals[i]);
+//      if(i != sliderInfo.lenght-1){
+//        slidarValsChar+=",";
+//      }
+    }
+//    sprintf(slidarValsChar, "%i,%i,%i,%i,%i,%i", 
+//      sliderInfo.vals[0], sliderInfo.vals[1], sliderInfo.vals[2],
+//      sliderInfo.vals[3], sliderInfo.vals[4], sliderInfo.vals[5]);
 
     request->send_P(200, "text/plain", slidarValsChar);
-    Serial.println("agL "+String(slidarValsChar));
   });
 
   // Send a GET request to <ESP_IP>/slider?value=<inputMessage>

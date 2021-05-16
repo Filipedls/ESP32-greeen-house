@@ -43,6 +43,15 @@ int getHour() {
   return (int) timeinfo.tm_hour;//String(hour).toInt();
 }
 
+String getDateTime(){
+  struct tm timeinfo;
+  timeinfo = getTime();
+   //GET DATE
+  char dateTime[35];
+  strftime(dateTime, sizeof(dateTime), "%A, %B %d %Y %H:%M:%S", &timeinfo);
+  return String(dateTime);
+}
+
 void setupTime() {
   //before  do: initWiFi();
   configTime(0, 0, ntpServer);

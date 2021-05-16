@@ -20,7 +20,7 @@ String readDHTTemperature() {
     if (!isnan(t)) {
       return String(t);
     }
-    //delay(5);
+    delay(5);
   }     
   Serial.println("Failed to read temp from DHT sensor!");
   return "--";
@@ -33,7 +33,7 @@ String readDHTHumidity() {
     if (!isnan(h)) {
       return String(h);
     }
-    //delay(5);
+    delay(5);
   }
   Serial.println("Failed to read humidity from DHT sensor!");
   return "--";
