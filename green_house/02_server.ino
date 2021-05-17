@@ -97,25 +97,38 @@ function dowpdownChanged(element) {
   xhr.send();
 }
 
-setInterval(function ( ) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("temperature").innerHTML = this.responseText;
-    }
-  };
-  xhttp.open("GET", "/temperature", true);
-  xhttp.send();
-}, 60000 ) ;
+//setInterval(function ( ) {
+//  var xhttp = new XMLHttpRequest();
+//  xhttp.onreadystatechange = function() {
+//    if (this.readyState == 4 && this.status == 200) {
+//      document.getElementById("temperature").innerHTML = this.responseText;
+//    }
+//  };
+//  xhttp.open("GET", "/temperature", true);
+//  xhttp.send();
+//}, 60000 ) ;
+//
+//setInterval(function ( ) {
+//  var xhttp = new XMLHttpRequest();
+//  xhttp.onreadystatechange = function() {
+//    if (this.readyState == 4 && this.status == 200) {
+//      document.getElementById("humidity").innerHTML = this.responseText;
+//    }
+//  };
+//  xhttp.open("GET", "/humidity", true);
+//  xhttp.send();
+//}, 60000 ) ;
 
 setInterval(function ( ) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("humidity").innerHTML = this.responseText;
+      var sensor_vals = this.responseText.split(",");
+      document.getElementById("temperature").innerHTML = sensor_vals[0];
+      document.getElementById("humidity").innerHTML = sensor_vals[1];
     }
   };
-  xhttp.open("GET", "/humidity", true);
+  xhttp.open("GET", "/getsensorvals", true);
   xhttp.send();
 }, 60000 ) ;
 
@@ -161,10 +174,8 @@ String processor(const String& var){
     String buttons ="";
     for(int i=1; i<=1; i++){
       String stateValue = switchStateStr();
-      buttons+= "<h4>"+String(all_modes[0].sname)+
-      " <label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"" 
-      + String(i) + "\" "+ stateValue +"><span class=\"slider\"></span></label> "+
-      String(all_modes[1].sname)+"</h4>";
+      buttons+= "<h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"" 
+      + String(i) + "\" "+ stateValue +"><span class=\"slider\"></span></label></h4>";
     }
     return buttons;
   } else if (var == "SLIDERSPLACEHOLDER"){
@@ -205,6 +216,9 @@ void setupServer(){
   });
   server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", readDHTHumidity().c_str());
+  });
+    server.on("/getsensorvals", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/plain", readDHTTemperatureHumidity().c_str());
   });
 
   // Send a the value of a light /slidervalue

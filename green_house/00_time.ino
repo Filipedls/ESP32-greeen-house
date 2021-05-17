@@ -48,7 +48,7 @@ String getDateTime(){
   timeinfo = getTime();
    //GET DATE
   char dateTime[35];
-  strftime(dateTime, sizeof(dateTime), "%A, %B %d %Y %H:%M:%S", &timeinfo);
+  strftime(dateTime, sizeof(dateTime), "%A, %B %d %Y %H:%M", &timeinfo);
   return String(dateTime);
 }
 

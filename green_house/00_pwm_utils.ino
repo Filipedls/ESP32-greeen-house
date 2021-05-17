@@ -10,7 +10,7 @@ const int n = 300;
 int pwmChannels[NPWMS] = {0, 1, 2, 3, 4, 5};
 int pwmPins[NPWMS] = {15, 2, 4, 5, 18, 23};
 // others: 27, 19
-int pwmVals[NPWMS] = {0, 10, 20, 30, 40, 44};
+int pwmVals[NPWMS] = {0, 0, 0, 0, 0, 0};
 
 // setting PWM properties for light
 const int freq_lights = 300;

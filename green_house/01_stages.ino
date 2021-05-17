@@ -7,11 +7,6 @@
 
 int selectedStage = 0;
 
-const int pwmValsOFF[NPWMS] = {0,0,0,0,0,0};
-
-
-const int sensorPin = 27;
-
 struct StageCfg {
     char sname[20]; 
     int pwmVals[NPWMS];
@@ -20,6 +15,15 @@ struct StageCfg {
 };
 
 // Config  for all stages
+StageCfg stage_off = { 
+  // Stage OFF
+  "OFF",
+  // PWM
+  {0,0,0,0,0,0},
+  // hour ON and OFF
+  0,0
+};
+
 #define NSTAGES 4
 StageCfg all_modes[NSTAGES] {
   { // Stage 1
@@ -27,22 +31,17 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {0,1,2,3,4,5},
     // hour ON and OFF
-    13,15
+    15,16
   },
   { // Stage 2
     "stg2",
     // PWM
     {9,8,7,6,5,4},
     // hour ON and OFF
-    9,23
+    16,17
   },
-  { // Stage 3
-    "OFF",
-    // PWM
-    {0,0,0,0,0,0},
-    // hour ON and OFF
-    0,0
-  },
+  // Stage 3 - OFF
+  stage_off,
   { // Stage 4
     "ON",
     // PWM
@@ -57,8 +56,8 @@ void setStage(int stageVal){
   selectedStage = stageVal;
   EEPROM.write(EEPROM_IDX, stageVal);
   EEPROM.commit();
+  Serial.print("M ");
   updateStage();
-  Serial.println("now in stage "+String(stageVal));
 }
 
 int getStage(){
@@ -69,11 +68,11 @@ void processStage(struct StageCfg stage, bool isStageON){
   if(isStageON){
     setPwmVals(stage.pwmVals);
   } else {
-    setPwmVals(pwmValsOFF);
+    setPwmVals(stage_off.pwmVals);
   }
 }
 
-int prev_stateIsON = -1;
+int prev_isStageON = -1;
 int prev_selectedStage = -1;
 void updateStage(){
   int hour = getHour();
@@ -89,33 +88,34 @@ void updateStage(){
     if(hour >= selStageCfg.hour_on || hour < selStageCfg.hour_off)
       isStageON = true;
   }
-  if(isStageON != prev_stateIsON || selectedStage != prev_selectedStage) {
+  if(isStageON != prev_isStageON || selectedStage != prev_selectedStage) {
     processStage(selStageCfg, isStageON);
-    Serial.printf("%ih  Stage updated %i->%i state %s->%s\n", 
-      hour, prev_selectedStage, selectedStage, isStageON?"ON":"OFF", prev_stateIsON?"ON":"OFF"
+    Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
+      hour, prev_selectedStage, selectedStage, 
+      prev_isStageON?"ON":"OFF", isStageON?"ON":"OFF"
     );
+    prev_isStageON = isStageON;
+    prev_selectedStage = selectedStage;
   }
-  prev_stateIsON = isStageON;
-  prev_selectedStage = selectedStage;
 }
 
-
+// sensorPin event
+//const int sensorPin = 27;
 //void IRAM_ATTR attachHaddler() {
 //  Serial.println("event sensor");
 //}
 
 // Semaphores for var access syncronization
-// volatile int interruptCounter;
+// volatile int var_to_sync;
 //portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 //portENTER_CRITICAL_ISR(&timerMux);
-//interruptCounter++;
+//var_to_sync++;
 //portEXIT_CRITICAL_ISR(&timerMux);
 
 hw_timer_t * timer = NULL;
 
 void IRAM_ATTR timerHandler() {
   updateStage();
-  //Serial.println("timeeeer");
 }
 
 void setupStages(){
@@ -133,7 +133,7 @@ void setupStages(){
   // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535
   timer = timerBegin(0, 8000, true);
   timerAttachInterrupt(timer, &timerHandler, true);
-  // alarm to updateStage every  30 mins
+  // alarm to updateStage every  20 mins
   timerAlarmWrite(timer, 1*600000, true);
   timerAlarmEnable(timer);
   

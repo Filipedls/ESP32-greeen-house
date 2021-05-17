@@ -7,9 +7,9 @@ void setup(){
   setupPWM();
   setupDHT();
   setupWiFi();
-  setupTime();
-  setupStages();
-  setupServer();
+  setupTime(); // needs setupWiFi
+  setupStages(); // needs setupTime
+  setupServer(); // needs setupTime, setupStages
 }
  
 void loop(){

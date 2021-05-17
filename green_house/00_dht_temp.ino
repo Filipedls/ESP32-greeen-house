@@ -2,7 +2,7 @@
 #include <DHT.h>
 
 #define DHTPIN 25     // Digital pin connected to the DHT sensor
-#define NTRIES 3      // number of tries in case of a failed measure
+#define NTRIES 10      // number of tries in case of a failed measure
    
 // Uncomment the type of sensor in use:
 #define DHTTYPE    DHT11     // DHT 11
@@ -32,6 +32,28 @@ String readDHTHumidity() {
     float h = dht.readHumidity();
     if (!isnan(h)) {
       return String(h);
+    }
+    delay(5);
+  }
+  Serial.println("Failed to read humidity from DHT sensor!");
+  return "--";
+}
+
+
+String readDHTTemperatureHumidity() {
+  // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float t = NAN;
+  float h = NAN;
+  for(int i = 0; i < NTRIES; i++){
+    if (isnan(h))
+      h = dht.readHumidity();
+      
+    if (isnan(t))
+      t = dht.readTemperature();
+
+    if (!isnan(h) && !isnan(t)){
+      Serial.println("TH "+String(t)+","+String(h)+" i"+String(i));
+      return String(t)+","+String(h);
     }
     delay(5);
   }
