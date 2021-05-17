@@ -14,6 +14,4 @@ void setup(){
  
 void loop(){
   // delay(2000);
-  updateStage();
-  delay(600000);
 }

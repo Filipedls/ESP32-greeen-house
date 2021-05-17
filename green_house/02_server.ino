@@ -62,7 +62,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
   <h3>Grow Stage</h3>
-  %BUTTONPLACEHOLDER%
+  %DROPDOWNPLACEHOLDER%
 </body>
 <script>
 function updateSliderPWM(element, slider_id) {
@@ -80,8 +80,20 @@ function toggleCheckbox(element) {
       getAllLightVal();
     }
   };
-  if(element.checked){ xhr.open("GET", "/updatecheckbox?state=1", true); }
-  else { xhr.open("GET", "/updatecheckbox?state=0", true); }
+  if(element.checked){ xhr.open("GET", "/updatestage?state=1", true); }
+  else { xhr.open("GET", "/updatestage?state=0", true); }
+  xhr.send();
+}
+
+
+function dowpdownChanged(element) {
+  var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      getAllLightVal();
+    }
+  };
+  xhr.open("GET", "/updatestage?state="+element.value, true);
   xhr.send();
 }
 
@@ -116,12 +128,10 @@ function getAllLightVal() {
         document.getElementById("textSliderValueLight"+x).innerHTML = light_vals[x];
         document.getElementById("pwmSlider"+x).value = light_vals[x];
       }
-      console.log("updated lights");
     }
   };
   xhttp.open("GET", "/slidervalues", true);
-  xhttp.send();    
-  console.log("interval all");
+  xhttp.send();
 }
 //setTimeout(getAllLightVal, 600000);
 //getAllLightVal();
@@ -172,6 +182,15 @@ String processor(const String& var){
     return buttons;
   } else if (var == "DATETIME"){
     return getDateTime();
+  } else if(var == "DROPDOWNPLACEHOLDER"){
+    String buttons ="<select id=\"stagesdropdown\" onchange=\"dowpdownChanged(this)\">";
+    int stateValue = getStage();
+    for(int i=0; i<NSTAGES; i++){
+      buttons+= "<option value=\""+String(i)+"\" "+String(stateValue==i?"selected=\"selected\"":"")+
+      ">"+String(i+1)+". "+String(all_modes[i].sname)+"</option>";
+    }
+    buttons+= "</select>";
+    return buttons;
   }
   return String();
 }
@@ -224,8 +243,8 @@ void setupServer(){
     request->send(200, "text/plain", "OK");
   });
   
-  // Send a GET request to <ESP_IP>/updatecheckbox?state=<inputMessage2>
-  server.on("/updatecheckbox", HTTP_GET, [] (AsyncWebServerRequest *request) {
+  // Send a GET request to <ESP_IP>/updatestage?state=<inputMessage2>
+  server.on("/updatestage", HTTP_GET, [] (AsyncWebServerRequest *request) {
     String inputMessage;
     // GET input1 value on <ESP_IP>/update?relay=<inputMessage>
     if (request->hasParam(PARAM_INPUT_CB_STATE)) {

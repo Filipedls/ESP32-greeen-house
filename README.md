@@ -15,3 +15,4 @@ Used a ESP32.
 ## TODOs
 
 * https://randomnerdtutorials.com/telegram-esp32-motion-detection-arduino/
+* https://www.survivingwithandroid.com/how-to-update-web-page-using-esp32-sse/
