@@ -1,5 +1,7 @@
 // Import required libraries
 
+#define ELEMENTS(x)   (sizeof(x) / sizeof(x[0]))
+
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
@@ -13,5 +15,6 @@ void setup(){
 }
  
 void loop(){
-  // delay(2000);
+  logTempHumidToGS();
+  delay(15*60000);
 }

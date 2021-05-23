@@ -19,7 +19,7 @@ StageCfg stage_off = {
   // Stage OFF
   "OFF",
   // PWM
-  {0,0,0,0,0,0},
+  {0,0,0,0,0,40},
   // hour ON and OFF
   0,0
 };
@@ -27,18 +27,18 @@ StageCfg stage_off = {
 #define NSTAGES 4
 StageCfg all_modes[NSTAGES] {
   { // Stage 1
-    "stg1",
+    "stg1_12_20",
     // PWM
-    {0,1,2,3,4,5},
+    {0,0,255,255,255,80},
     // hour ON and OFF
-    15,16
+    12,20
   },
   { // Stage 2
-    "stg2",
+    "stg2_16_23",
     // PWM
-    {9,8,7,6,5,4},
+    {0,0,0,255,255,70},
     // hour ON and OFF
-    16,17
+    16,23
   },
   // Stage 3 - OFF
   stage_off,
@@ -71,6 +71,9 @@ void processStage(struct StageCfg stage, bool isStageON){
     setPwmVals(stage_off.pwmVals);
   }
 }
+
+// AUTO temp humid  control
+// have a max humid where if  above fan goes up, til back normal
 
 int prev_isStageON = -1;
 int prev_selectedStage = -1;
@@ -116,6 +119,7 @@ hw_timer_t * timer = NULL;
 
 void IRAM_ATTR timerHandler() {
   updateStage();
+  //logTempHumidToGS();
 }
 
 void setupStages(){
@@ -133,10 +137,10 @@ void setupStages(){
   // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535
   timer = timerBegin(0, 8000, true);
   timerAttachInterrupt(timer, &timerHandler, true);
-  // alarm to updateStage every  20 mins
-  timerAlarmWrite(timer, 1*600000, true);
+  // alarm to updateStage every  15 mins
+  timerAlarmWrite(timer, 2*600000, true);
   timerAlarmEnable(timer);
   
-  updateStage();
+  timerHandler();
   
 }

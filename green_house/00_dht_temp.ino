@@ -52,7 +52,7 @@ String readDHTTemperatureHumidity() {
       t = dht.readTemperature();
 
     if (!isnan(h) && !isnan(t)){
-      Serial.println("TH "+String(t)+","+String(h)+" i"+String(i));
+      //Serial.println("TH "+String(t)+","+String(h)+" i"+String(i));
       return String(t)+","+String(h);
     }
     delay(5);

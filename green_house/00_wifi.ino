@@ -20,7 +20,7 @@ void setupWiFi(){
       Serial.println("STA Failed to configure");
     }
     WiFi.begin(ssid, password);
-    Serial.print(" ");
+    Serial.print("_");
     for(int i = 0; i < 4; i++){   
       if (WiFi.status() == WL_CONNECTED) {
         break;
@@ -29,6 +29,6 @@ void setupWiFi(){
       delay(700);
     }
   } while (WiFi.status() != WL_CONNECTED);
-  Serial.print(" IP ");  
+  Serial.print(" ");  
   Serial.println(WiFi.localIP()); 
 }
