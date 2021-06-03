@@ -11,32 +11,34 @@
 
 DHT dht(DHTPIN, DHTTYPE);
 
-String readDHTTemperature() {
+float readDHTTemperature() {
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float t;
   for(int i = 0; i < NTRIES; i++){
     // Read temperature as Celsius (the default)
-    float t = dht.readTemperature();
+    t = dht.readTemperature();
     // Check if any reads failed and exit early (to try again).
     if (!isnan(t)) {
-      return String(t);
+      return t;
     }
     delay(5);
   }     
   Serial.println("Failed to read temp from DHT sensor!");
-  return "--";
+  return t;
 }
 
-String readDHTHumidity() {
+float readDHTHumidity() {
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+  float h;
   for(int i = 0; i < NTRIES; i++){
-    float h = dht.readHumidity();
+    h = dht.readHumidity();
     if (!isnan(h)) {
-      return String(h);
+      return h;
     }
     delay(5);
   }
   Serial.println("Failed to read humidity from DHT sensor!");
-  return "--";
+  return h;
 }
 
 

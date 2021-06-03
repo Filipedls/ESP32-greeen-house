@@ -10,11 +10,13 @@ void setup(){
   setupDHT();
   setupWiFi();
   setupTime(); // needs setupWiFi
+  setupLogs();
   setupStages(); // needs setupTime
   setupServer(); // needs setupTime, setupStages
 }
  
 void loop(){
+  delay(60000);
   logTempHumidToGS();
-  delay(15*60000);
+  delay(14*60000);
 }

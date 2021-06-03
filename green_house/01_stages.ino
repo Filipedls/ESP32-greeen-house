@@ -6,12 +6,15 @@
 #define EEPROM_IDX 0
 
 int selectedStage = 0;
-
+#define MAX_TEMPS_SIZE 10
 struct StageCfg {
     char sname[20]; 
     int pwmVals[NPWMS];
     int hour_on;
     int hour_off;
+    int tempsSize;
+    int tempsVals[MAX_TEMPS_SIZE];
+    int fansVals[MAX_TEMPS_SIZE];
 };
 
 // Config  for all stages
@@ -21,24 +24,59 @@ StageCfg stage_off = {
   // PWM
   {0,0,0,0,0,40},
   // hour ON and OFF
-  0,0
+  0,0,
+  // FAN
+  // tempsSize
+  0,
+  // tempsVals
+  {},
+  // fansVals
+  {}
 };
 
-#define NSTAGES 4
+#define NSTAGES 5
 StageCfg all_modes[NSTAGES] {
   { // Stage 1
     "stg1_12_20",
     // PWM
     {0,0,255,255,255,80},
     // hour ON and OFF
-    12,20
+    12,20,
+    // FAN
+    // tempsSize
+    7,
+    // tempsVals
+    {20,24,27,30,33,36,40},
+    // fansVals
+    {45,70,100,140,200,220,255}
   },
   { // Stage 2
     "stg2_16_23",
     // PWM
     {0,0,0,255,255,70},
     // hour ON and OFF
-    16,23
+    16,23,
+    // FAN
+    // tempsSize
+    7,
+    // tempsVals
+    {20,24,27,30,33,36,40},
+    // fansVals
+    {45,70,100,140,200,220,255}
+  },
+  { // Stage 3
+    "stg3_20_14",
+    // PWM
+    {0,0,255,255,255,120},
+    // hour ON and OFF
+    20,14,
+    // FAN
+    // tempsSize
+    7,
+    // tempsVals
+    {20,24,27,30,33,36,40},
+    // fansVals
+    {45,70,100,140,200,220,255}
   },
   // Stage 3 - OFF
   stage_off,
@@ -47,7 +85,14 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {255,255,255,255,255,123},
     // hour ON and OFF
-    0,24
+    0,24,
+    // FAN
+    // tempsSize
+    7,
+    // tempsVals
+    {20,24,27,30,33,36,40},
+    // fansVals
+    {45,70,100,140,200,220,255}
   }
 };
 
@@ -72,8 +117,25 @@ void processStage(struct StageCfg stage, bool isStageON){
   }
 }
 
+
 // AUTO temp humid  control
-// have a max humid where if  above fan goes up, til back normal
+// have a max humid and temp, where if  above fan goes up, til back normal
+void setFanSpeedFromStage(struct StageCfg stage){
+  if(stage.tempsSize < 0){
+    float temperature = readDHTTemperature();
+    for(int i=0; i<stage.tempsSize;i++){
+      if(temperature < stage.tempsVals[i]){
+          setPwmVal(stage.fansVals[i], NLIGHTS);
+          Serial.println( String(i)+" setting: fan to"+String(stage.fansVals[i])+" T"+String(temperature) );
+          break;
+        }
+    }
+    setPwmVals(stage_off.pwmVals);
+  } else {
+    Serial.println("no temps to  set");
+    //setPwmVal(stage.pwmVals, NLIGHTS);
+  }
+}
 
 int prev_isStageON = -1;
 int prev_selectedStage = -1;
@@ -100,6 +162,7 @@ void updateStage(){
     prev_isStageON = isStageON;
     prev_selectedStage = selectedStage;
   }
+  setFanSpeedFromStage(selStageCfg);
 }
 
 // sensorPin event
@@ -138,7 +201,7 @@ void setupStages(){
   timer = timerBegin(0, 8000, true);
   timerAttachInterrupt(timer, &timerHandler, true);
   // alarm to updateStage every  15 mins
-  timerAlarmWrite(timer, 2*600000, true);
+  timerAlarmWrite(timer, 5*600000, true);
   timerAlarmEnable(timer);
   
   timerHandler();

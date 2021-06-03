@@ -97,28 +97,6 @@ function dowpdownChanged(element) {
   xhr.send();
 }
 
-//setInterval(function ( ) {
-//  var xhttp = new XMLHttpRequest();
-//  xhttp.onreadystatechange = function() {
-//    if (this.readyState == 4 && this.status == 200) {
-//      document.getElementById("temperature").innerHTML = this.responseText;
-//    }
-//  };
-//  xhttp.open("GET", "/temperature", true);
-//  xhttp.send();
-//}, 60000 ) ;
-//
-//setInterval(function ( ) {
-//  var xhttp = new XMLHttpRequest();
-//  xhttp.onreadystatechange = function() {
-//    if (this.readyState == 4 && this.status == 200) {
-//      document.getElementById("humidity").innerHTML = this.responseText;
-//    }
-//  };
-//  xhttp.open("GET", "/humidity", true);
-//  xhttp.send();
-//}, 60000 ) ;
-
 setInterval(function ( ) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
@@ -166,10 +144,10 @@ String switchStateStr(){
 String processor(const String& var){
   //Serial.println("processor "+var);
   if(var == "TEMPERATURE"){
-    return readDHTTemperature();
+    return String(readDHTTemperature());
   }
   else if(var == "HUMIDITY"){
-    return readDHTHumidity();
+    return String(readDHTHumidity());
   } else if(var == "BUTTONPLACEHOLDER"){
     String buttons ="";
     for(int i=1; i<=1; i++){
@@ -211,13 +189,7 @@ void setupServer(){
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/html", index_html, processor);
   });
-  server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", readDHTTemperature().c_str());
-  });
-  server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", readDHTHumidity().c_str());
-  });
-    server.on("/getsensorvals", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/getsensorvals", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", readDHTTemperatureHumidity().c_str());
   });
 

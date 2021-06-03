@@ -6,9 +6,8 @@ const int resolution = 8;
 #define NFANS 1
 #define NPWMS (NLIGHTS + NFANS)
 
-const int n = 300;
 int pwmChannels[NPWMS] = {0, 1, 2, 3, 4, 5};
-int pwmPins[NPWMS] = {15, 2, 4, 5, 18, 23};
+int pwmPins[NPWMS] = {19, 2, 4, 5, 18, 23};
 // others: 27, 19
 int pwmVals[NPWMS] = {0, 0, 0, 0, 0, 0};
 
