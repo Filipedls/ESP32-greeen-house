@@ -6,16 +6,44 @@
 #define EEPROM_IDX 0
 
 int selectedStage = 0;
+
 #define MAX_TEMPS_SIZE 10
+struct TempCfg {
+    int tempsSize;
+    int temps[MAX_TEMPS_SIZE];
+    int fanSpeeds[MAX_TEMPS_SIZE];
+};
+
 struct StageCfg {
     char sname[20]; 
     int pwmVals[NPWMS];
     int hour_on;
     int hour_off;
-    int tempsSize;
-    int tempsVals[MAX_TEMPS_SIZE];
-    int fansVals[MAX_TEMPS_SIZE];
+    TempCfg temp_config;
 };
+
+
+// temp config  for all stages
+TempCfg main_temp_config = { 
+      // FAN
+    // tempsSize
+    8,
+    // temps
+    {0 ,20,24,27 ,30 ,33 ,36 ,40},
+    // fanSpeeds
+    {40,45,70,120,190,220,240,255}
+};
+
+TempCfg silent_temp_config = { 
+      // FAN
+    // tempsSize
+    8,
+    // temps
+    {0 ,20,24,27 ,30 ,33 ,36 ,40},
+    // fanSpeeds
+    {40,45,60,100,130,180,220,255}
+};
+
 
 // Config  for all stages
 StageCfg stage_off = { 
@@ -25,74 +53,44 @@ StageCfg stage_off = {
   {0,0,0,0,0,40},
   // hour ON and OFF
   0,0,
-  // FAN
-  // tempsSize
-  0,
-  // tempsVals
-  {},
-  // fansVals
-  {}
+  {0,{},{}}
 };
 
 #define NSTAGES 5
 StageCfg all_modes[NSTAGES] {
   { // Stage 1
-    "stg1_12_20",
+    "stg1_12_23",
     // PWM
-    {0,0,255,255,255,80},
+    {0,0,255,255,180,100},
     // hour ON and OFF
-    12,20,
-    // FAN
-    // tempsSize
-    7,
-    // tempsVals
-    {20,24,27,30,33,36,40},
-    // fansVals
-    {45,70,100,140,200,220,255}
+    12,23,
+    main_temp_config
   },
   { // Stage 2
-    "stg2_16_23",
+    "stg2_12_23_S",
     // PWM
-    {0,0,0,255,255,70},
+    {0,0,0,255,80,70},
     // hour ON and OFF
-    16,23,
-    // FAN
-    // tempsSize
-    7,
-    // tempsVals
-    {20,24,27,30,33,36,40},
-    // fansVals
-    {45,70,100,140,200,220,255}
+    12,23,
+    silent_temp_config
   },
   { // Stage 3
     "stg3_20_14",
     // PWM
-    {0,0,255,255,255,120},
+    {0,0,255,255,180,120},
     // hour ON and OFF
     20,14,
-    // FAN
-    // tempsSize
-    7,
-    // tempsVals
-    {20,24,27,30,33,36,40},
-    // fansVals
-    {45,70,100,140,200,220,255}
+    main_temp_config
   },
   // Stage 3 - OFF
   stage_off,
   { // Stage 4
     "ON",
     // PWM
-    {255,255,255,255,255,123},
+    {255,255,255,255,255,140},
     // hour ON and OFF
     0,24,
-    // FAN
-    // tempsSize
-    7,
-    // tempsVals
-    {20,24,27,30,33,36,40},
-    // fansVals
-    {45,70,100,140,200,220,255}
+    main_temp_config
   }
 };
 
@@ -120,20 +118,33 @@ void processStage(struct StageCfg stage, bool isStageON){
 
 // AUTO temp humid  control
 // have a max humid and temp, where if  above fan goes up, til back normal
-void setFanSpeedFromStage(struct StageCfg stage){
-  if(stage.tempsSize < 0){
+void setFanSpeedFromStage(){
+  StageCfg selStageCfg = all_modes[selectedStage];
+  TempCfg temps_cfg = selStageCfg.temp_config;
+  if(temps_cfg.tempsSize > 0){
     float temperature = readDHTTemperature();
-    for(int i=0; i<stage.tempsSize;i++){
-      if(temperature < stage.tempsVals[i]){
-          setPwmVal(stage.fansVals[i], NLIGHTS);
-          Serial.println( String(i)+" setting: fan to"+String(stage.fansVals[i])+" T"+String(temperature) );
-          break;
-        }
+    if(!isnan(temperature)){
+      
+      for(int i=0; i<temps_cfg.tempsSize;i++){
+        
+        if(temperature < temps_cfg.temps[i]){
+            int pwmVal = 
+                temps_cfg.fanSpeeds[i]-(temps_cfg.fanSpeeds[i]-temps_cfg.fanSpeeds[i-1])*
+                ((temps_cfg.temps[i]-temperature)/(temps_cfg.temps[i]-temps_cfg.temps[i-1]));
+
+            setPwmVal(NLIGHTS, pwmVal);
+            //Serial.println( String(i)+" setting: fan to"+String(pwmVal)+" T"+String(temperature) );
+            break;
+          }
+          // above max temp
+          if(i == temps_cfg.tempsSize-1){
+            setPwmVal(NLIGHTS, temps_cfg.fanSpeeds[i]);
+          }
+      }
+    }else {
+      setPwmVal(NLIGHTS, selStageCfg.pwmVals[NLIGHTS]);
+      Serial.println("no temps to  set NAN");
     }
-    setPwmVals(stage_off.pwmVals);
-  } else {
-    Serial.println("no temps to  set");
-    //setPwmVal(stage.pwmVals, NLIGHTS);
   }
 }
 
@@ -162,7 +173,7 @@ void updateStage(){
     prev_isStageON = isStageON;
     prev_selectedStage = selectedStage;
   }
-  setFanSpeedFromStage(selStageCfg);
+  //setFanSpeedFromStage(selStageCfg);
 }
 
 // sensorPin event
@@ -200,7 +211,7 @@ void setupStages(){
   // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535
   timer = timerBegin(0, 8000, true);
   timerAttachInterrupt(timer, &timerHandler, true);
-  // alarm to updateStage every  15 mins
+  // alarm to updateStage every  3 mins
   timerAlarmWrite(timer, 5*600000, true);
   timerAlarmEnable(timer);
   

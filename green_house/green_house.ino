@@ -13,10 +13,18 @@ void setup(){
   setupLogs();
   setupStages(); // needs setupTime
   setupServer(); // needs setupTime, setupStages
+  // wait 10s for the temp sensor
+  delay(10000);
+  logTempHumidToGS();
+  delay(5000);
 }
  
 void loop(){
-  delay(60000);
-  logTempHumidToGS();
-  delay(14*60000);
+  for(int i=1; i<6;i++){
+    setFanSpeedFromStage();
+    if(i==5)
+      logTempHumidToGS();
+      
+    delay(3*60000);
+  }
 }
