@@ -31,7 +31,7 @@ TempCfg main_temp_config = {
     // temps
     {0 ,20,24,27 ,30 ,33 ,36 ,40},
     // fanSpeeds
-    {40,45,70,120,190,220,240,255}
+    {40,45,70,120,200,230,245,255}
 };
 
 TempCfg silent_temp_config = { 
@@ -56,38 +56,54 @@ StageCfg stage_off = {
   {0,{},{}}
 };
 
-#define NSTAGES 5
+#define NSTAGES 7
 StageCfg all_modes[NSTAGES] {
-  { // Stage 1
-    "stg1_12_23",
+  { // Stage 1 - grow
+    "grow_20_14",
+    // PWM
+    {0,0,127,127,63,90},
+    // hour ON and OFF
+    20,14,
+    main_temp_config
+  },
+  { // Stage 2 - late-grow
+    "late_grow_20_14",
+    // PWM
+    {0,0,255,255,127,140},
+    // hour ON and OFF
+    20,14,
+    main_temp_config
+  },
+  { // Stage 3 - flower
+    "flower_20_14",
+    // PWM
+    {255,255,255,255,255,160},
+    // hour ON and OFF
+    20,14,
+    main_temp_config
+  },
+  { // Stage 4
+    "stg_12_23",
     // PWM
     {0,0,255,255,180,100},
     // hour ON and OFF
     12,23,
     main_temp_config
   },
-  { // Stage 2
-    "stg2_12_23_S",
+  { // Stage 5
+    "stg_12_23_S",
     // PWM
     {0,0,0,255,80,70},
     // hour ON and OFF
     12,23,
     silent_temp_config
   },
-  { // Stage 3
-    "stg3_20_14",
-    // PWM
-    {0,0,255,255,180,120},
-    // hour ON and OFF
-    20,14,
-    main_temp_config
-  },
-  // Stage 3 - OFF
+  // Stage 6 - OFF
   stage_off,
-  { // Stage 4
+  { // Stage 7
     "ON",
     // PWM
-    {255,255,255,255,255,140},
+    {255,255,255,255,255,160},
     // hour ON and OFF
     0,24,
     main_temp_config

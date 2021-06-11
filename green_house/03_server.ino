@@ -59,6 +59,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <sup class="units">&percnt;</sup>
   </p>
   <h5>%DATETIME%</h5>
+  <button type="button" onclick="buttonRestart()">Restart ESP</button>
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
   <h3>Grow Stage</h3>
@@ -124,6 +125,19 @@ function getAllLightVal() {
   xhttp.open("GET", "/slidervalues", true);
   xhttp.send();
 }
+
+function buttonRestart() {
+  if (confirm("Are you sure?")) {
+    var xhr = new XMLHttpRequest();
+    xhr.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        console.log("restarted");
+      }
+    };
+    xhr.open("GET", "/restartesp", true);
+    xhr.send();
+  }
+}
 //setTimeout(getAllLightVal, 600000);
 //getAllLightVal();
 console.log("done setuping");
@@ -188,6 +202,11 @@ void setupServer(){
    // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/html", index_html, processor);
+  });
+  server.on("/restartesp", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "OK");
+    delay(1000);
+    ESP.restart();
   });
   server.on("/getsensorvals", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send_P(200, "text/plain", readDHTTemperatureHumidity().c_str());

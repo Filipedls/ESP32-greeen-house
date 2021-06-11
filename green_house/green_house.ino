@@ -10,19 +10,17 @@ void setup(){
   setupDHT();
   setupWiFi();
   setupTime(); // needs setupWiFi
-  setupLogs();
+  //setupLogs();
   setupStages(); // needs setupTime
   setupServer(); // needs setupTime, setupStages
   // wait 10s for the temp sensor
   delay(10000);
-  logTempHumidToGS();
-  delay(5000);
 }
  
 void loop(){
   for(int i=1; i<6;i++){
     setFanSpeedFromStage();
-    if(i==5)
+    if(i==1)
       logTempHumidToGS();
       
     delay(3*60000);
