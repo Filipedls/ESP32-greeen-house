@@ -13,8 +13,8 @@ void setup(){
   //setupLogs();
   setupStages(); // needs setupTime
   setupServer(); // needs setupTime, setupStages
-  // wait 10s for the temp sensor
-  delay(10000);
+  // wait 5s for the temp sensor
+  delay(5000);
 }
  
 void loop(){

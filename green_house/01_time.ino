@@ -7,12 +7,16 @@ const char* ntpServer = "pool.ntp.org";
 unsigned long epochTime; 
 
 // Function that gets current epoch time
+// todo: time failed mode? 
+bool time_failed = false;
 struct tm getTime() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
     Serial.println("Failed to obtain time");
+    time_failed = true;
     return timeinfo;
   }
+  time_failed = false;
   //time(&now);
   //Serial.println(&timeinfo, "It's %A, %B %d %Y %H:%M:%S");
   return timeinfo;
@@ -57,4 +61,5 @@ void setupTime() {
   configTime(0, 0, ntpServer);
   // Berlin timeZone
   setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 1);
+  //Serial.println("time configed");
 }

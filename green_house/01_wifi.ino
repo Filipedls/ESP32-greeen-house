@@ -21,25 +21,11 @@ IPAddress dns(1, 1, 1, 1);
 void connectWiFi(){
   // Connect to Wi-Fi
   Serial.print("starting..."); 
-  //int n_tries = 0;
-  //do {
-    if(!WiFi.config(local_IP, gateway, subnet, dns)) {
-      Serial.println("STA Failed to configure");
-    }
-    WiFi.begin(ssid, password);
-//    Serial.print("_");
-//    for(int i = 0; i < 4; i++){   
-//      if (WiFi.status() != WL_CONNECTED) {
-//        Serial.print(".");
-//        delay(1000);
-//      } else {
-//        Serial.print(" ");  
-//        Serial.println(WiFi.localIP()); 
-//        break;  
-//      }
-//    }
-  //  n_tries++;
-  //} while ((WiFi.status() != WL_CONNECTED)); // || (n_tries > 3));
+
+  if(!WiFi.config(local_IP, gateway, subnet, dns)) {
+    Serial.println("STA Failed to configure");
+  }
+  WiFi.begin(ssid, password);
 }
 
 //
@@ -94,4 +80,5 @@ void setupWiFi(){
     Serial.print(".");
     delay(1000);
   }
+  delay(1000);
 }

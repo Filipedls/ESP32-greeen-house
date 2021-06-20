@@ -8,7 +8,7 @@ const int resolution = 8;
 
 int pwmChannels[NPWMS] = {0, 1, 2, 3, 4, 5};
 int pwmPins[NPWMS] = {19, 2, 4, 5, 18, 23};
-// others: 27, 19
+// others: 15, 27, 19, 21
 int pwmVals[NPWMS] = {0, 0, 0, 0, 0, 0};
 
 // setting PWM properties for light
@@ -58,6 +58,11 @@ void setPwmVals(const int vals[]){
   for(int i=0; i<NPWMS;i++){
     setPwmVal(i, vals[i]);
   }
+}
+
+
+void setMainFanPwm(int val){
+  setPwmVal(NLIGHTS, val);
 }
 
 

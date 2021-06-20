@@ -59,11 +59,12 @@ const char index_html[] PROGMEM = R"rawliteral(
     <sup class="units">&percnt;</sup>
   </p>
   <h5>%DATETIME%</h5>
-  <button type="button" onclick="buttonRestart()">Restart ESP</button>
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
   <h3>Grow Stage</h3>
   %DROPDOWNPLACEHOLDER%
+  <br><br>
+  <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
 </body>
 <script>
 function updateSliderPWM(element, slider_id) {
@@ -126,19 +127,23 @@ function getAllLightVal() {
   xhttp.send();
 }
 
-function buttonRestart() {
+function buttonRestart(elem) {
   if (confirm("Are you sure?")) {
+    elem.style.backgroundColor = "red";
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
       if (this.readyState == 4 && this.status == 200) {
         console.log("restarted");
+        elem.style.backgroundColor = "green";
+        setInterval(function ( ) {
+          elem.style.backgroundColor = null;
+        }, 1000);                                        
       }
     };
     xhr.open("GET", "/restartesp", true);
     xhr.send();
   }
-}
-//setTimeout(getAllLightVal, 600000);
+}//setTimeout(getAllLightVal, 600000);
 //getAllLightVal();
 console.log("done setuping");
 </script>
@@ -241,6 +246,10 @@ void setupServer(){
       sliderID = request->getParam(PARAM_INPUT_ID)->value().toInt();
       setPwmVal(sliderID, sliderValueAux);
       Serial.println("pwmID "+String(sliderID)+" V"+String(sliderValueAux));
+      if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
+        stopAutoFan();
+        Serial.println("pwmID FAN stopAutoFan");
+      }
     }
     else {
       Serial.println("No message sent");
