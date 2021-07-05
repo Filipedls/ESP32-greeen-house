@@ -155,10 +155,13 @@ hw_timer_t * timer_fan = NULL;
 bool timer_is_ON = false;
 void stopAutoFan(){
   // (re)start alarm to startAutoFan in 30 mins
-  timerAlarmWrite(timer_fan, 5*600000, false);
+  timerAlarmDisable(timer_fan);
+  timerRestart(timer_fan);
+  timerAlarmWrite(timer_fan, 30*600000, false);
+  timerAlarmEnable(timer_fan);
+  
   if(!timer_is_ON){
     Serial.println("fan timer going ON");
-    timerAlarmEnable(timer_fan);
     timer_is_ON = true;
   } else {
     Serial.println("fan timer going RESTART");
@@ -168,7 +171,6 @@ void stopAutoFan(){
 void IRAM_ATTR startAutoFan(){
   if(timer_is_ON){
     Serial.println("fan timer going OFF");
-    timerAlarmDisable(timer_fan);
     timer_is_ON = false;
   } else {
     Serial.println("fan timer going OFF, again?!");
@@ -275,6 +277,8 @@ void updateStage(){
     prev_selectedStage = selectedStage;
   }
 }
+
+
 
 // sensorPin event
 //const int sensorPin = 27;

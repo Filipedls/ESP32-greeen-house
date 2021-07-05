@@ -248,7 +248,7 @@ void setupServer(){
       Serial.println("pwmID "+String(sliderID)+" V"+String(sliderValueAux));
       if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
         stopAutoFan();
-        Serial.println("pwmID FAN stopAutoFan");
+        //Serial.println("pwmID FAN stopAutoFan");
       }
     }
     else {

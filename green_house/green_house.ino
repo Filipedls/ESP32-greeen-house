@@ -23,6 +23,6 @@ void loop(){
     if(i==1)
       logTempHumidToGS();
       
-    delay(3*60000);
+    delay(4*60000);
   }
 }
