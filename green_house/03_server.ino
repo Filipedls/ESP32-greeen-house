@@ -49,7 +49,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   </style>
 </head>
 <body>
-  <h2>Green Control Room</h2>
+  <h2>Green Settings</h2>
   <p>
     <i class="fas fa-thermometer-half" style="color:#059e8a;"></i> 
     <span id="temperature">%TEMPERATURE%</span>
@@ -57,20 +57,36 @@ const char index_html[] PROGMEM = R"rawliteral(
     <i class="fas fa-tint" style="color:#00add6;"></i> 
     <span id="humidity">%HUMIDITY%</span>
     <sup class="units">&percnt;</sup>
+    <button type="button" onclick="updateTempHumd(this)">R</button>
   </p>
   <h5>%DATETIME%</h5>
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
-  <h3>Grow Stage</h3>
+  <h3>Modes</h3>
+  <h5>grow stage</h5>
   %DROPDOWNPLACEHOLDER%
+  <h5>fan mode</h5>
+  %DROPDOWNFANPLACEHOLDER%
   <br><br>
   <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
 </body>
 <script>
+function onslideSliderPWM(element, slider_id) {
+  var sliderValue = element.value;
+  var textSlider = document.getElementById("textSliderValueLight"+slider_id);
+  textSlider.innerHTML = sliderValue;
+  textSlider.style.color = "red";
+}
+
 function updateSliderPWM(element, slider_id) {
   var sliderValue = element.value;
   document.getElementById("textSliderValueLight"+slider_id).innerHTML = sliderValue;
   var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      document.getElementById("textSliderValueLight"+slider_id).style.color = null;
+    }
+  };
   xhr.open("GET", "/slider?value="+sliderValue+"&id="+slider_id, true);
   xhr.send();
 }
@@ -99,18 +115,32 @@ function dowpdownChanged(element) {
   xhr.send();
 }
 
-setInterval(function ( ) {
+function fanDowpdownChanged(element) {
+  var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      getAllLightVal();
+    }
+  };
+  xhr.open("GET", "/updatefanstate?state="+element.value, true);
+  xhr.send();
+}
+
+function updateTempHumd(elem) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
       var sensor_vals = this.responseText.split(",");
       document.getElementById("temperature").innerHTML = sensor_vals[0];
       document.getElementById("humidity").innerHTML = sensor_vals[1];
+      elem.style.backgroundColor = null;
     }
   };
   xhttp.open("GET", "/getsensorvals", true);
   xhttp.send();
-}, 60000 ) ;
+  elem.style.backgroundColor = "red";
+}
+//setInterval(updateTempHumd, 60000 ) ;
 
 function getAllLightVal() {
   var xhttp = new XMLHttpRequest();
@@ -183,9 +213,9 @@ String processor(const String& var){
       if(i == sliderInfo.lenght-NFANS){
         buttons+="<h3>Fan</h3>";
       }
-      buttons+= "<h4>" + String(i) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
-      "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
-      "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h4>";
+      buttons+= "<h4>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
+      "')\" oninput=\"onslideSliderPWM(this, '" + String(i) + "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
+      "\" step=\"5\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h4>";
     }
     return buttons;
   } else if (var == "DATETIME"){
@@ -196,6 +226,15 @@ String processor(const String& var){
     for(int i=0; i<NSTAGES; i++){
       buttons+= "<option value=\""+String(i)+"\" "+String(stateValue==i?"selected=\"selected\"":"")+
       ">"+String(i+1)+". "+String(all_modes[i].sname)+"</option>";
+    }
+    buttons+= "</select>";
+    return buttons;
+  } else if(var == "DROPDOWNFANPLACEHOLDER"){
+    String buttons ="<select id=\"fandropdown\" onchange=\"fanDowpdownChanged(this)\">";
+    int fanValue = getTempConfigN();
+    for(int i=0; i<NTEMPCONFIGS; i++){
+      buttons+= "<option value=\""+String(i)+"\" "+String(fanValue==i?"selected=\"selected\"":"")+
+      ">"+String(i+1)+". "+String(all_temp_configs[i].tname)+"</option>";
     }
     buttons+= "</select>";
     return buttons;
@@ -267,6 +306,19 @@ void setupServer(){
     }
     else {
       Serial.println("CB No message sent");
+    }
+    request->send(200, "text/plain", "OK");
+  });
+  // Send a GET request to <ESP_IP>/updatefanstate?state=<inputMessage2>
+  server.on("/updatefanstate", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    String inputMessage;
+    // GET input1 value on <ESP_IP>/update?relay=<inputMessage>
+    if (request->hasParam(PARAM_INPUT_CB_STATE)) {
+      inputMessage = request->getParam(PARAM_INPUT_CB_STATE)->value();
+      setTempConfig(inputMessage.toInt());
+    }
+    else {
+      Serial.println("CBfan No message sent");
     }
     request->send(200, "text/plain", "OK");
   });

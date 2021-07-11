@@ -33,6 +33,7 @@ void PinWrite(int channel, int dutyCycle) {
 
 // server methods
 struct pwmValsInfo {
+    const char pwmNames[NPWMS][2] = {"R", "L", "F", "B", "r", "f"};
     int vals[NPWMS];
     size_t lenght;
 };
@@ -44,6 +45,7 @@ struct pwmValsInfo getPwmVals(){
     pwmInfo.vals[i] = pwmVals[i];
   }
   pwmInfo.lenght = NPWMS;
+  //pwmInfo.lightNames = lightNames;
   return pwmInfo;
 }
 

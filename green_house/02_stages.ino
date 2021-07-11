@@ -9,6 +9,7 @@ int selectedStage = 0;
 
 #define MAX_TEMPS_SIZE 10
 struct TempCfg {
+    char tname[20];
     int tempsSize;
     int temps[MAX_TEMPS_SIZE];
     int fanSpeeds[MAX_TEMPS_SIZE];
@@ -20,35 +21,44 @@ struct StageCfg {
     int pwmVals[NPWMS];
     int hour_on;
     int hour_off;
-    TempCfg temp_config;
+    int temp_config;
 };
 
 
 // temp config  for all stages
 TempCfg main_temp_config = { 
-      // FAN
+    // FAN
+    //tname
+    "main",
     // tempsSize
     4,
     // temps
-    {24,26 ,29 ,33 },
+    {24,27 ,30 ,33 },
     // fanSpeeds
-    {40,120,200,255},
+    {40,100,200,255},
     // lightPowerRatioWeight
     0.4
 };
 
 TempCfg silent_temp_config = { 
-      // FAN
+    // FAN
+    //tname
+    "silent",
     // tempsSize
     4,
     // temps
-    {24,26 ,30 ,33 },
+    {24,28 ,30 ,33 },
     // fanSpeeds
-    {40,90,170,255},
+    {40,80,180,255},
     // lightPowerRatioWeight
     0.3
 };
 
+TempCfg off_temp_config = {"off", 0,{},{},0.0};
+
+#define NTEMPCONFIGS 3
+TempCfg all_temp_configs[NTEMPCONFIGS] {main_temp_config, silent_temp_config, off_temp_config};
+int selTempCfg = 0;
 
 // Config  for all stages
 StageCfg stage_off = { 
@@ -58,7 +68,7 @@ StageCfg stage_off = {
   {0,0,0,0,0,0},
   // hour ON and OFF
   0,0,
-  {0,{},{},0.0}
+  2
 };
 
 #define NSTAGES 8
@@ -69,7 +79,7 @@ StageCfg all_modes[NSTAGES] {
     {0,0,63,63,0,50},
     // hour ON and OFF
     20,14,
-    main_temp_config
+    0
   },
   { // Stage 1 - grow
     "grow_20_14",
@@ -77,7 +87,7 @@ StageCfg all_modes[NSTAGES] {
     {0,0,127,127,63,90},
     // hour ON and OFF
     20,14,
-    main_temp_config
+    0
   },
   { // Stage 2 - late-grow
     "late_grow_20_14",
@@ -85,7 +95,7 @@ StageCfg all_modes[NSTAGES] {
     {0,0,255,255,127,140},
     // hour ON and OFF
     20,14,
-    main_temp_config
+    0
   },
   { // Stage 3 - flower
     "flower_20_14",
@@ -93,7 +103,7 @@ StageCfg all_modes[NSTAGES] {
     {255,255,255,255,255,160},
     // hour ON and OFF
     20,14,
-    main_temp_config
+    0
   },
   { // Stage 4
     "stg_12_23",
@@ -101,7 +111,7 @@ StageCfg all_modes[NSTAGES] {
     {0,0,255,255,180,100},
     // hour ON and OFF
     12,23,
-    main_temp_config
+    0
   },
   { // Stage 5
     "stg_12_23_S",
@@ -109,7 +119,7 @@ StageCfg all_modes[NSTAGES] {
     {0,0,0,255,80,70},
     // hour ON and OFF
     12,23,
-    silent_temp_config
+    1
   },
   // Stage 6 - OFF
   stage_off,
@@ -119,7 +129,7 @@ StageCfg all_modes[NSTAGES] {
     {255,255,255,255,255,160},
     // hour ON and OFF
     0,24,
-    main_temp_config
+    0
   }
 };
 
@@ -128,9 +138,16 @@ void setStage(int stageVal){
   selectedStage = stageVal;
   EEPROM.write(EEPROM_IDX, stageVal);
   EEPROM.commit();
-  Serial.print("M ");
+  selTempCfg = all_modes[selectedStage].temp_config;
   updateStage();
   setFanSpeedFromStage();
+}
+
+void restoreStage(){
+  // initialize EEPROM with predefined size
+  EEPROM.begin(EEPROM_SIZE);
+  selectedStage = EEPROM.read(EEPROM_IDX);
+  selTempCfg = all_modes[selectedStage].temp_config;
 }
 
 int getStage(){
@@ -220,6 +237,13 @@ void processTempCfg(struct TempCfg temps_cfg, float temperature){
   setMainFanPwm(pwmVal);
 }
 
+void setTempConfig(int tempConfigN){
+  selTempCfg = tempConfigN;
+}
+
+int getTempConfigN(){
+  return selTempCfg;
+}
 
 int n_times_temp_nan = 0;
 void setFanSpeedFromStage(){
@@ -227,8 +251,10 @@ void setFanSpeedFromStage(){
     Serial.println("temp timer_is_ON! nothing done");
     return;
   }
+  
   StageCfg selStageCfg = all_modes[selectedStage];
-  TempCfg temps_cfg = selStageCfg.temp_config;
+  TempCfg temps_cfg = all_temp_configs[selTempCfg];
+  Serial.println("temp csel: "+String(selTempCfg) + " N " + String(temps_cfg.tname));
   if(temps_cfg.tempsSize > 0){
     float temperature = readDHTTemperature();
     if(!isnan(temperature)){
@@ -278,8 +304,56 @@ void updateStage(){
   }
 }
 
+/*
+void sunRise(struct StageCfg selStageCfg){
 
+    // 2 min
+  int sunRiseLenght = 2*60000;
+  // half the time for red rise
+  int sunRedLenght = sunRiseLenght/2.0;
+  int maxRedLightVal = selStageCfg.pwmVals[NLIGHTS-1];
+  int initRedLightVal = 6;
+  int minAdjustDelayRed = sunRedLenght / (maxRedLightVal -initRedLightVal);
 
+  Serial.println("SunRise: starting red at "+String(minAdjustDelayRed)+" ms; red len: "+String(sunRedLenght)+" ms");
+  
+  for(int i=initRedLightVal; i<maxRedLightVal;i++){
+    // setting red light pwm
+    setPwmVal(NLIGHTS-1, i);
+    Serial.print(String(i)+" ");
+    delay(minAdjustDelayRed);
+  }
+  // computing the max light val
+  int maxLightVal = 0;
+  for(int i=0; i<NLIGHTS;i++){
+    if(selStageCfg.pwmVals[i] > maxLightVal){
+      maxLightVal = selStageCfg.pwmVals[i] ;
+    }
+  }
+  
+  int sunWhiteRiseLenght = sunRiseLenght - sunRedLenght;
+  int initLightVal = 6;
+  int minAdjustDelay = sunWhiteRiseLenght / (maxLightVal-initLightVal);
+  
+  Serial.println("SunRise: starting at "+String(minAdjustDelay)+" ms; len: "+String(sunRiseLenght)+" ms");
+
+  for(int i=initLightVal; i<maxLightVal;i++){
+
+    (i / float(maxLightVal))*;
+
+    // only sets the lights, fan is independently controled
+    for(int j=0; j<NLIGHTS-1;j++){
+
+      int ithLightPwm = initLightVal + ( (i-initLightVal)*(selStageCfg.pwmVals[j] / float(maxLightVal) ) ) ;
+      
+      setPwmVal(j, ithLightPwm);
+    }
+    Serial.print(String(i)+" ");
+    delay(minAdjustDelay);
+  }
+}
+
+*/
 // sensorPin event
 //const int sensorPin = 27;
 //void IRAM_ATTR attachHaddler() {
@@ -307,9 +381,7 @@ void IRAM_ATTR timerHandler() {
 }
 
 void setupStages(){
-  // initialize EEPROM with predefined size
-  EEPROM.begin(EEPROM_SIZE);
-  selectedStage = EEPROM.read(EEPROM_IDX);
+  restoreStage();
 
   // Setting a timer to run updateStage()
   // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535
