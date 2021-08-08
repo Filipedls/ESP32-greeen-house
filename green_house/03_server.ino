@@ -65,7 +65,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h3>Modes</h3>
   <h5>grow stage</h5>
   %DROPDOWNPLACEHOLDER%
-  <h5>fan mode</h5>
+  <h5>smart fan mode</h5>
   %DROPDOWNFANPLACEHOLDER%
   <br><br>
   <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
@@ -135,6 +135,8 @@ function updateTempHumd(elem) {
       document.getElementById("humidity").innerHTML = sensor_vals[1];
       elem.style.backgroundColor = null;
     }
+    // TODO: one call to rule them all
+    getAllLightVal();
   };
   xhttp.open("GET", "/getsensorvals", true);
   xhttp.send();
@@ -215,7 +217,7 @@ String processor(const String& var){
       }
       buttons+= "<h4>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
       "')\" oninput=\"onslideSliderPWM(this, '" + String(i) + "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
-      "\" step=\"5\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h4>";
+      "\" step=\"15\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h4>";
     }
     return buttons;
   } else if (var == "DATETIME"){
