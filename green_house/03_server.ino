@@ -300,17 +300,17 @@ void setupServer(){
     if (request->hasParam(PARAM_INPUT)) {
       sliderValueAux = request->getParam(PARAM_INPUT)->value().toInt();
       sliderID = request->getParam(PARAM_INPUT_ID)->value().toInt();
-      if(sliderID ==hour_on_slide_id){
+      if(sliderID == hour_on_slide_id){
         setHourOn(sliderValueAux);
-      } else if(sliderID ==hours_off_slide_id){
+      } else if(sliderID == hours_off_slide_id){
         setNHoursOff(sliderValueAux);
+      } else if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
+        setMainFanPwm(sliderValueAux);
+        stopAutoFan();
+        //Serial.println("pwmID FAN stopAutoFan");
       } else {
         setPwmVal(sliderID, sliderValueAux);
-        Serial.println("pwmID "+String(sliderID)+" V"+String(sliderValueAux));
-        if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
-          stopAutoFan();
-          //Serial.println("pwmID FAN stopAutoFan");
-        }
+        Serial.println("pwmID "+ String(sliderID)+" V" + String(sliderValueAux));
       }
     }
     else {

@@ -62,12 +62,6 @@ void setPwmVals(const int vals[]){
   }
 }
 
-
-void setMainFanPwm(int val){
-  setPwmVal(NLIGHTS, val);
-}
-
-
 void  setupPWM(){
   // configure LED PWM functionalitites
   for(int i = 0; i < NLIGHTS; i++){

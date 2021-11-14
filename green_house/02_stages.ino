@@ -27,6 +27,10 @@ struct StageCfg {
     int temp_config;
 };
 
+// absolute min fan speed, bellow this will stop
+const int abs_min_fan_speed = 40;
+// setable min_fan_speed
+int min_fan_speed = abs_min_fan_speed;
 
 // temp config  for all stages
 TempCfg main_temp_config = { 
@@ -209,6 +213,14 @@ struct StageCfg getSelectedStage(){
 
 // FAN //
 
+void setMainFanPwm(int val){
+  if(all_temp_configs[selTempCfg] == off_temp_config){
+    min_fan_speed = max(val, abs_min_fan_speed);
+    Serial.println("setMainFanPwm: setting min fan speed to" + String(val) );
+  }
+  setPwmVal(NLIGHTS, val);
+}
+
 hw_timer_t * timer_fan = NULL;
 bool timer_is_ON = false;
 void stopAutoFan(){
@@ -234,7 +246,6 @@ void IRAM_ATTR startAutoFan(){
     Serial.println("fan timer going OFF, again?!");
   }
 }
-
 
 // AUTO temp humid  control
 // have a max humid and temp, where if  above fan goes up, til back normal
@@ -274,7 +285,8 @@ void processTempCfg(struct TempCfg temps_cfg, float temperature){
     pwmVal = max(pwmVal, temps_cfg.fanSpeeds[0]);
     //Serial.println( "PWM fan "+String(pwmVal));
   }
-  
+  // checks the set min
+  pwmVal = max(pwmVal, min_fan_speed);
   setMainFanPwm(pwmVal);
 }
 
