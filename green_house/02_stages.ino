@@ -317,6 +317,14 @@ void updateStage(){
       isStageON = true;
   }
   if(isStageON != prev_isStageON || selectedStage != prev_selectedStage) {
+    if(isStageON == false && selectedStage == prev_selectedStage){
+      // when swiching the state off, saves the light vals
+      pwmValsInfo pwmInfo = getPwmVals();
+      // all_modes[selectedStage].pwmVals = pwmInfo.vals;  
+      for(int i=0; i<NPWMS;i++){
+        all_modes[selectedStage].pwmVals[i] = pwmInfo.vals[i];
+      }
+    }
     processStageState(selStageCfg, isStageON);
     Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
       hour, prev_selectedStage, selectedStage, 

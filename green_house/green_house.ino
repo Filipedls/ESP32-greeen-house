@@ -19,7 +19,7 @@ void setup(){
  
 void loop(){
   for(int i=1; i<6;i++){
-    setFanSpeedFromStage();
+    updateFanSpeed();
     if(i==1)
       logTempHumidToGS();
       
