@@ -19,8 +19,11 @@ struct TempCfg {
 struct StageCfg {
     char sname[20]; 
     int pwmVals[NPWMS];
+    // hour (24h) that the light goes on
     int hour_on;
-    int hour_off;
+    // n hours off
+    //int hour_off;
+    int n_hours_off;
     int temp_config;
 };
 
@@ -81,7 +84,7 @@ StageCfg stage_off = {
   // PWM
   {0,0,0,0,0,0},
   // hour ON and OFF
-  0,0,
+  0,24,
   2
 };
 
@@ -92,7 +95,7 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {0,0,63,63,0,50},
     // hour ON and OFF
-    20,14,
+    20,6,
     0
   },
   { // Stage 1 - grow
@@ -100,7 +103,7 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {0,0,165,165,0,100},
     // hour ON and OFF
-    20,14,
+    20,6,
     0
   },
   { // Stage 2 - late-grow
@@ -108,7 +111,7 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {120,120,255,255,127,150},
     // hour ON and OFF
-    20,14,
+    20,6,
     0
   },
   { // Stage 3 - flower
@@ -116,7 +119,7 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {255,255,255,255,255,160},
     // hour ON and OFF
-    20,14,
+    20,6,
     0
   },
   { // Stage 4
@@ -124,7 +127,7 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {0,0,255,255,180,100},
     // hour ON and OFF
-    12,23,
+    12,13,
     0
   },
   { // Stage 5
@@ -132,7 +135,7 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {0,0,0,255,80,70},
     // hour ON and OFF
-    12,23,
+    12,13,
     1
   },
   // Stage 6 - OFF
@@ -142,7 +145,7 @@ StageCfg all_modes[NSTAGES] {
     // PWM
     {255,255,255,255,255,160},
     // hour ON and OFF
-    0,24,
+    0,0,
     0
   }
 };
@@ -183,6 +186,28 @@ void processStageState(struct StageCfg stage, bool isStageON){
   }
 }
 
+
+// hour_on  hour_off, n_hours_off //
+
+void setHourOn(int hour_on){
+  all_modes[selectedStage].hour_on = hour_on;
+}
+void setNHoursOff(int n_hours_off){
+  all_modes[selectedStage].n_hours_off = n_hours_off;
+}
+int getHourOff(struct StageCfg stage){
+  int hour_off = stage.hour_on - stage.n_hours_off;
+  if (hour_off < 0)
+    hour_off = hour_off + 24;
+  return hour_off;
+}
+
+struct StageCfg getSelectedStage(){
+  return all_modes[selectedStage];  
+}
+
+
+// FAN //
 
 hw_timer_t * timer_fan = NULL;
 bool timer_is_ON = false;
@@ -300,25 +325,36 @@ void updateFanSpeed(){
   }
 }
 
+// STAGE - Lights //
+
 int prev_isStageON = -1;
 int prev_selectedStage = -1;
 void updateStage(){
-  int hour = getHour();
-  //Serial.print("Updating stage "+String(selectedStage)+" ("+String(hour)+"h)... ");
-  
   StageCfg selStageCfg = all_modes[selectedStage];
+  int hour = getHour();
   bool isStageON = false;
-  // Checks if the selected stage is ON
-  if(selStageCfg.hour_on <= selStageCfg.hour_off){
-    if(hour >= selStageCfg.hour_on && hour < selStageCfg.hour_off)
-      isStageON = true;
+  // Determining the state of the stage
+  if (selStageCfg.n_hours_off == 0) {
+    isStageON = true;
+  } else if (selStageCfg.n_hours_off == 24) {
+    isStageON = false;
   } else {
-    if(hour >= selStageCfg.hour_on || hour < selStageCfg.hour_off)
-      isStageON = true;
+    //Serial.print("Updating stage "+String(selectedStage)+" ("+String(hour)+"h)... ");
+    // Checks if the selected stage is ON
+    int hour_off = getHourOff(selStageCfg);
+    int hour_on = selStageCfg.hour_on;
+    if(hour_on <= hour_off){
+      if(hour >= hour_on && hour < hour_off)
+        isStageON = true;
+    } else {
+      if(hour >= hour_on || hour < hour_off)
+        isStageON = true;
+    }
   }
+  // Precessing the stage's state
   if(isStageON != prev_isStageON || selectedStage != prev_selectedStage) {
     if(isStageON == false && selectedStage == prev_selectedStage){
-      // when swiching the state off, saves the light vals
+    // when swiching the state off, saves the light vals
       pwmValsInfo pwmInfo = getPwmVals();
       // all_modes[selectedStage].pwmVals = pwmInfo.vals;  
       for(int i=0; i<NPWMS;i++){

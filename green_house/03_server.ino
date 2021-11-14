@@ -6,6 +6,8 @@
 // Aux Vars for http calls
 int sliderValueAux = 0;
 const char* PARAM_INPUT = "value";
+int hour_on_slide_id = 420;
+int hours_off_slide_id = 421;
 
 char slidarValsChar[28];
 
@@ -65,6 +67,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h3>Modes</h3>
   <h5>grow stage</h5>
   %DROPDOWNPLACEHOLDER%
+  %HOURONOFF%
   <h5>smart fan mode</h5>
   %DROPDOWNFANPLACEHOLDER%
   <br><br>
@@ -240,6 +243,18 @@ String processor(const String& var){
     }
     buttons+= "</select>";
     return buttons;
+  } else if(var == "HOURONOFF"){
+    String hour_on_id = String(hour_on_slide_id);
+    String hours_off_id = String(hours_off_slide_id);
+    StageCfg selStageCfg = getSelectedStage();
+    String text = "<h5>H on: <input type=\"range\" onchange=\"updateSliderPWM(this, '" + hour_on_id +
+      "')\" oninput=\"onslideSliderPWM(this, '" + hour_on_id + "')\" id=\"pwmSlider" + hour_on_id +"\" min=\"0\" max=\"23\" value=\""+ selStageCfg.hour_on + 
+      "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ hour_on_id +"\">"+selStageCfg.hour_on+"</span></h5>";
+     // hours off
+     text += "<h5>Hs off: <input type=\"range\" onchange=\"updateSliderPWM(this, '" + hours_off_id +
+      "')\" oninput=\"onslideSliderPWM(this, '" + hours_off_id + "')\" id=\"pwmSlider" + hours_off_id +"\" min=\"0\" max=\"24\" value=\""+ selStageCfg.n_hours_off + 
+      "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ hours_off_id +"\">"+selStageCfg.n_hours_off+"</span></h5>";
+    return text;
   }
   return String();
 }
@@ -285,11 +300,17 @@ void setupServer(){
     if (request->hasParam(PARAM_INPUT)) {
       sliderValueAux = request->getParam(PARAM_INPUT)->value().toInt();
       sliderID = request->getParam(PARAM_INPUT_ID)->value().toInt();
-      setPwmVal(sliderID, sliderValueAux);
-      Serial.println("pwmID "+String(sliderID)+" V"+String(sliderValueAux));
-      if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
-        stopAutoFan();
-        //Serial.println("pwmID FAN stopAutoFan");
+      if(sliderID ==hour_on_slide_id){
+        setHourOn(sliderValueAux);
+      } else if(sliderID ==hours_off_slide_id){
+        setNHoursOff(sliderValueAux);
+      } else {
+        setPwmVal(sliderID, sliderValueAux);
+        Serial.println("pwmID "+String(sliderID)+" V"+String(sliderValueAux));
+        if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
+          stopAutoFan();
+          //Serial.println("pwmID FAN stopAutoFan");
+        }
       }
     }
     else {
