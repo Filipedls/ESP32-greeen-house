@@ -1,4 +1,10 @@
-// TODO fan based on power mode
+// include library to read and write from flash memory
+#include <EEPROM.h>
+
+// define the number of bytes you want to access
+#define EEPROM_T_SIZE 2
+#define EEPROM_T_IDX 1
+#define EEPROM_TM_IDX 2
 
 #define MAX_TEMPS_SIZE 10
 struct TempCfg {
@@ -22,9 +28,9 @@ TempCfg main_temp_config = {
     // tempsSize
     4,
     // temps
-    {24,27 ,30 ,33 },
+    {20,27 ,30 ,33 },
     // fanSpeeds
-    {40,100,200,255},
+    {0 ,100,210,255},
     // lightPowerRatioWeight
     0.4
 };
@@ -52,8 +58,10 @@ TempCfg dynamic_temp_config = {
     0.5
 };
 
+// pid defined by having no temp profile and a lightPowerRatioWeight bellow 1
 TempCfg pid_temp_config = {"PID", 0,{},{}, 0.95};
 
+// proportional to the avg of the lights
 TempCfg light_temp_config = {"light", 0,{},{}, 1.0};
 
 TempCfg off_temp_config = {"off", 0,{},{},-1.0};
@@ -74,10 +82,30 @@ void setMainFanPwm(int val){
   setPwmVal(NLIGHTS, val);
 }
 
-void setDynamicTemp(int mid_fan_speed_temp_new_val){
+void restoreFanMode(){
+  // initialize EEPROM with predefined size
+  //EEPROM.begin(EEPROM_T_SIZE);
+  int mid_fan_speed_temp_mem = EEPROM.read(EEPROM_T_IDX);
+  if(mid_fan_speed_temp_mem > 33 || mid_fan_speed_temp_mem < 15)
+    mid_fan_speed_temp_mem = mid_fan_speed_temp;
+  propagateDynamicTemp(mid_fan_speed_temp_mem);
+  // fand mode
+  int selTempCfg_mem = EEPROM.read(EEPROM_TM_IDX);
+  if(selTempCfg_mem >= NTEMPCONFIGS || selTempCfg_mem < 0)
+    selTempCfg_mem = selTempCfg;
+  selTempCfg = selTempCfg_mem;
+}
+
+void propagateDynamicTemp(int mid_fan_speed_temp_new_val){
   mid_fan_speed_temp = mid_fan_speed_temp_new_val;
   dynamic_temp_config.temps[0] = mid_fan_speed_temp-temp_offset;
   dynamic_temp_config.temps[1] = mid_fan_speed_temp+temp_offset;
+}
+
+void setDynamicTemp(int mid_fan_speed_temp_new_val){
+  propagateDynamicTemp(mid_fan_speed_temp_new_val);
+  EEPROM.write(EEPROM_T_IDX, mid_fan_speed_temp);
+  EEPROM.commit();
   updateFanSpeed();
 }
 
@@ -93,28 +121,29 @@ void stopAutoFan(){
   timerAlarmEnable(timer_fan);
   
   if(!timer_is_ON){
-    Serial.println("fan timer going ON");
+    //Serial.println("fan timer going ON");
     timer_is_ON = true;
   } else {
-    Serial.println("fan timer going RESTART");
+    //Serial.println("fan timer going RESTART");
   }
 }
 
 void IRAM_ATTR startAutoFan(){
   if(timer_is_ON){
-    Serial.println("fan timer going OFF");
+    //Serial.println("fan timer going OFF");
     timer_is_ON = false;
   } else {
-    Serial.println("fan timer going OFF, again?!");
+    //Serial.println("fan timer going OFF, again?!");
   }
 }
-
 
 void setTempConfig(int tempConfigN){
   selTempCfg = tempConfigN;
   if(timer_is_ON){
     timer_is_ON = false;
   }
+  EEPROM.write(EEPROM_TM_IDX, selTempCfg);
+  EEPROM.commit();
   updateFanSpeed();
 }
 
@@ -168,8 +197,7 @@ void setPIDfanSpeed(float temp, float lightPowerRatio){
   // speed cannot be bellow zero and above 255
   speed_val = min(max(speed_val, 0), 255);
   prev_err = err;
-
-  Serial.println( "PID > speed:"+String(speed_val)+" err:"+String(err)+" esum:"+String(err_sum) + " pcoef:"+String(power_coef) );
+  //Serial.println( "PID > speed:"+String(speed_val)+" err:"+String(err)+" esum:"+String(err_sum) + " pcoef:"+String(power_coef) );
   setMainFanPwm(speed_val);
 }
 
@@ -207,7 +235,7 @@ void processTempCfg(struct TempCfg temps_cfg, float temperature){
 int n_times_temp_nan = 0;
 void updateFanSpeed(){
   if(timer_is_ON){
-    Serial.println("temp timer_is_ON! nothing done");
+    //Serial.println("temp timer_is_ON! nothing done");
     return;
   }
   
@@ -246,6 +274,7 @@ void updateFanSpeed(){
 }
 
 void setupFan(){
+  restoreFanMode();
   // Setting a timer to use in startAutoFan()
   timer_fan = timerBegin(1, 8000, true);
   timerAttachInterrupt(timer_fan, &startAutoFan, true);
@@ -254,6 +283,4 @@ void setupFan(){
   // the fan can have a speed as low as 40, but can not start with that
   setMainFanPwm(80);
   delay(2000);
-  // default fan mode is zero
-  setTempConfig(0);
 }

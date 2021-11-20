@@ -2,14 +2,10 @@
 #include <EEPROM.h>
 
 // define the number of bytes you want to access
-#define EEPROM_SIZE 1
+#define EEPROM_STAGE_SIZE 1
 #define EEPROM_IDX 0
 
 int selectedStage = 0;
-
-
-// TODO rm all NPWMS and fan stuff
-
 
 struct StageCfg {
     char sname[20]; 
@@ -82,7 +78,7 @@ void setStage(int stageVal){
 
 void restoreStage(){
   // initialize EEPROM with predefined size
-  EEPROM.begin(EEPROM_SIZE);
+  //EEPROM.begin(EEPROM_STAGE_SIZE);
   selectedStage = EEPROM.read(EEPROM_IDX);
   
   if(selectedStage > NSTAGES-1 || selectedStage < 0)

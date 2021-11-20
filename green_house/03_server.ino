@@ -40,7 +40,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     p { font-size: 1.5rem; }
     .units { font-size: 1.2rem; }
     .dht-labels{
-      font-size: 1.5rem;
+      font-size: 1.3rem;
       vertical-align:middle;
       padding-bottom: 15px;
     }
@@ -53,7 +53,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   </style>
 </head>
 <body>
-  <h2>Green Settings</h2>
+  <h3>the greens in a box</h3>
   <p>
     <i class="fas fa-thermometer-half" style="color:#059e8a;"></i> 
     <span id="temperature">%TEMPERATURE%</span>
@@ -63,14 +63,15 @@ const char index_html[] PROGMEM = R"rawliteral(
     <sup class="units">&percnt;</sup>
     <button type="button" onclick="updateTempHumd(this)">R</button>
   </p>
-  <h5>%DATETIME%</h5>
-  <h3>Lights</h3>
+  <h6>%DATETIME%</h6>
+  <h4>Lights</h4>
   %SLIDERSPLACEHOLDER%
-  <h3>Modes</h3>
+  <h4>Modes</h4>
   <h5>light mode: %DROPDOWNPLACEHOLDER%</h5>
   %HOURONOFF%
   <h5>fan mode: %DROPDOWNFANPLACEHOLDER%</h5>
   %FANTEMPOFFSET%
+  %WARNS%
   <br>
   <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
 </body>
@@ -217,11 +218,11 @@ String processor(const String& var){
     for(int i=0; i < sliderInfo.lenght; i++){
       String sliderVal = String(sliderInfo.vals[i]);
       if(i == sliderInfo.lenght-NFANS){
-        buttons+="<h3>Fan</h3>";
+        buttons+="<h4>Fan</h4>";
       }
-      buttons+= "<h4>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
+      buttons+= "<h5>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
       "')\" oninput=\"onslideSliderPWM(this, '" + String(i) + "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
-      "\" step=\"15\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h4>";
+      "\" step=\"15\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h5>";
     }
     return buttons;
   } else if (var == "DATETIME"){
@@ -263,6 +264,12 @@ String processor(const String& var){
       "')\" oninput=\"onslideSliderPWM(this, '" + temp_offset_id + "')\" id=\"pwmSlider" + temp_offset_id +"\" min=\"15\" max=\"33\" value=\""+ mid_fan_speed_temp_str + 
       "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ temp_offset_id +"\">"+mid_fan_speed_temp_str+"</span>&deg;C</h5>";
      // hours off
+    return text;
+  } else if(var == "WARNS") {
+    String text = "<span style=\"color:red\">";
+    if(n_times_temp_nan > 2)
+      text += "temp is nan 3x!";
+    text += "</span>";
     return text;
   }
   return String();
