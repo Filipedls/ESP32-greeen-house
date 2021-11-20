@@ -52,10 +52,14 @@ TempCfg dynamic_temp_config = {
     0.5
 };
 
-TempCfg off_temp_config = {"off", 0,{},{},0.0};
+TempCfg pid_temp_config = {"PID", 0,{},{}, 0.95};
 
-#define NTEMPCONFIGS 3
-TempCfg * all_temp_configs[NTEMPCONFIGS] {&main_temp_config, &dynamic_temp_config, &off_temp_config};
+TempCfg light_temp_config = {"light", 0,{},{}, 1.0};
+
+TempCfg off_temp_config = {"off", 0,{},{},-1.0};
+
+#define NTEMPCONFIGS 5
+TempCfg * all_temp_configs[NTEMPCONFIGS] {&main_temp_config, &dynamic_temp_config, &pid_temp_config, &light_temp_config, &off_temp_config};
 int selTempCfg = 0;
 
 // FAN //
@@ -65,6 +69,8 @@ void setMainFanPwm(int val){
     min_fan_speed = max(val, abs_min_fan_speed);
     Serial.println("setMainFanPwm: setting min fan speed to" + String(min_fan_speed) );
   }
+  // checks the set min
+  val = max(val, min_fan_speed);
   setPwmVal(NLIGHTS, val);
 }
 
@@ -127,6 +133,46 @@ int getAvgLightPower(){
   return lightPowerAvg;
 }
 
+// PID fan control
+
+// config
+float kI = 0.01;
+float kD = 0.1;
+float kP = 0.2;
+int dt = 2; // 1 min?
+
+// aux vars
+bool prev_cycle_was_PID = false;
+float prev_err = 0;
+float err_sum = 0;
+float err = 0;
+void setPIDfanSpeed(float temp, float lightPowerRatio){
+
+  if(!prev_cycle_was_PID){
+    prev_err = 0;
+    err_sum = 0;
+    err = 0;
+    prev_cycle_was_PID = true;
+  }
+  int lightPowerAvg = getAvgLightPower();
+  // mid_fan_speed_temp is the temo goal for the PID
+  err = temp - mid_fan_speed_temp;
+  // to remove the lag from the integral part, we clip it at zero
+  // otherwise takes to long to react, once when negative, needs to catch up to the positive error
+  err_sum = min(max(err_sum + err,float(0.0)), float(100.0));
+
+  // a ratio of 1 mean the PID val is 100% propotional to the avg_light_power, 0 doesnt care about lights
+  float power_coef = lightPowerRatio*lightPowerAvg + (1-lightPowerRatio)*255.0;
+
+  int speed_val = (kP*err + kI*err_sum*dt + kD*(err-prev_err)/dt) * power_coef;
+  // speed cannot be bellow zero and above 255
+  speed_val = min(max(speed_val, 0), 255);
+  prev_err = err;
+
+  Serial.println( "PID > speed:"+String(speed_val)+" err:"+String(err)+" esum:"+String(err_sum) + " pcoef:"+String(power_coef) );
+  setMainFanPwm(speed_val);
+}
+
 // AUTO temp humid  control
 // have a max humid and temp, where if  above fan goes up, til back normal
 void processTempCfg(struct TempCfg temps_cfg, float temperature){
@@ -155,8 +201,6 @@ void processTempCfg(struct TempCfg temps_cfg, float temperature){
     pwmVal = temps_cfg.lightPowerRatio*lightPowerAvg + (1-temps_cfg.lightPowerRatio)*pwmVal;
     //Serial.println("PT fan to"+String(pwmVal)+" T"+String(temperature) + " avg: "+ String(lightPowerAvg)  );
   }
-  // checks the set min
-  pwmVal = max(pwmVal, min_fan_speed);
   setMainFanPwm(pwmVal);
 }
 
@@ -169,11 +213,22 @@ void updateFanSpeed(){
   
   TempCfg temps_cfg = * all_temp_configs[selTempCfg];
   //Serial.println("temp csel: "+String(selTempCfg) + " N " + String(temps_cfg.tname));
-  if(temps_cfg.tempsSize > 0){
+  if(temps_cfg.lightPowerRatio >= 1.0){
+    int default_fan_speed = getAvgLightPower(); 
+    setMainFanPwm(default_fan_speed);
+    prev_cycle_was_PID = false; 
+  } else if(temps_cfg.tempsSize > 0 || temps_cfg.lightPowerRatio >= 0.0){
     float temperature = readDHTTemperature();
     if(!isnan(temperature)){
       n_times_temp_nan = 0;
-      processTempCfg(temps_cfg, temperature);
+      if(temps_cfg.tempsSize > 0){
+        processTempCfg(temps_cfg, temperature);
+        prev_cycle_was_PID = false;
+      } else {
+        // if temps_cfg.tempsSize == 0 and lightPowerRatio >= 0.0 does PID
+        // when no temp profile does PID 
+        setPIDfanSpeed(temperature, temps_cfg.lightPowerRatio);
+      }
     }else {
       if(n_times_temp_nan > 2){
         // when no temp profile default to the avg light power
@@ -185,6 +240,8 @@ void updateFanSpeed(){
         n_times_temp_nan++;
       }
     }
+  } else {
+    prev_cycle_was_PID = false;  
   }
 }
 
