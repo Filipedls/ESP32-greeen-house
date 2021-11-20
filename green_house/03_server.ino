@@ -65,11 +65,9 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h3>Lights</h3>
   %SLIDERSPLACEHOLDER%
   <h3>Modes</h3>
-  <h5>grow stage</h5>
-  %DROPDOWNPLACEHOLDER%
+  <h5>light mode: %DROPDOWNPLACEHOLDER%</h5>
   %HOURONOFF%
-  <h5>smart fan mode</h5>
-  %DROPDOWNFANPLACEHOLDER%
+  <h5>fan mode: %DROPDOWNFANPLACEHOLDER%</h5>
   <br><br>
   <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
 </body>
