@@ -7,134 +7,68 @@
 
 int selectedStage = 0;
 
-#define MAX_TEMPS_SIZE 10
-struct TempCfg {
-    char tname[20];
-    int tempsSize;
-    int temps[MAX_TEMPS_SIZE];
-    int fanSpeeds[MAX_TEMPS_SIZE];
-    float lightPowerRatio;
-};
+
+// TODO rm all NPWMS and fan stuff
+
 
 struct StageCfg {
     char sname[20]; 
-    int pwmVals[NPWMS];
+    int pwmVals[NLIGHTS];
     // hour (24h) that the light goes on
     int hour_on;
     // n hours off
     //int hour_off;
     int n_hours_off;
-    int temp_config;
 };
-
-// absolute min fan speed, bellow this will stop
-const int abs_min_fan_speed = 40;
-// setable min_fan_speed
-int min_fan_speed = abs_min_fan_speed;
-
-// temp config  for all stages
-TempCfg main_temp_config = { 
-    // FAN
-    //tname
-    "main",
-    // tempsSize
-    4,
-    // temps
-    {24,27 ,30 ,33 },
-    // fanSpeeds
-    {40,100,200,255},
-    // lightPowerRatioWeight
-    0.4
-};
-
-TempCfg low_temp_config = { 
-    // FAN
-    //tname
-    "low",
-    // tempsSize
-    4,
-    // temps
-    {24,28 ,31 ,33 },
-    // fanSpeeds
-    {40,80,180,255},
-    // lightPowerRatioWeight
-    0.3
-};
-
-TempCfg silent_temp_config = { 
-    // FAN
-    //tname
-    "silent",
-    // tempsSize
-    4,
-    // temps
-    {24,29 ,33 ,35 },
-    // fanSpeeds
-    {40,80,180,255},
-    // lightPowerRatioWeight
-    0.3
-};
-
-TempCfg off_temp_config = {"off", 0,{},{},0.0};
-
-#define NTEMPCONFIGS 4
-TempCfg all_temp_configs[NTEMPCONFIGS] {main_temp_config, low_temp_config, silent_temp_config, off_temp_config};
-int selTempCfg = 0;
 
 // Config  for all stages
 StageCfg stage_off = { 
   // Stage OFF
   "OFF",
-  // PWM
-  {0,0,0,0,0,0},
+  // PWM for lights
+  {0,0,0,0,0},
   // hour ON and OFF
-  0,24,
-  2
+  0,24
 };
 
 #define NSTAGES 6
 StageCfg all_modes[NSTAGES] {
     { // Stage 0 - sprout
     "sprout",
-    // PWM
-    {0,0,63,63,0,50},
+    // PWM for lights
+    {0,0,63,63,0},
     // hour ON and OFF
-    20,3,
-    0
+    20,3
   },
   { // Stage 1 - grow
     "grow",
-    // PWM
-    {0,0,150,150,30,100},
+    // PWM for lights
+    {0,0,150,150,30},
     // hour ON and OFF
-    20,4,
-    0
+    20,4
   },
   { // Stage 2 - late-grow
     "late_grow",
-    // PWM
-    {120,120,255,255,127,150},
+    // PWM for lights
+    {120,120,255,255,127},
     // hour ON and OFF
-    20,6,
-    0
+    20,6
   },
   { // Stage 3 - flower
     "flower",
-    // PWM
-    {255,255,255,255,255,160},
+    // PWM for lights
+    {255,255,255,255,255},
     // hour ON and OFF
-    20,6,
-    0
+    20,6
   },
   // Stage 4 - OFF
   stage_off,
   { // Stage 5
     "ON",
-    // PWM
-    {255,255,255,255,255,255},
+    // PWM for lights
+    {255,255,255,255,255},
     // hour ON and OFF
-    0,0,
-    0
+    0,0
   }
 };
 
@@ -143,9 +77,7 @@ void setStage(int stageVal){
   selectedStage = stageVal;
   EEPROM.write(EEPROM_IDX, stageVal);
   EEPROM.commit();
-  selTempCfg = all_modes[selectedStage].temp_config;
   updateStage();
-  updateFanSpeed();
 }
 
 void restoreStage(){
@@ -196,133 +128,6 @@ struct StageCfg getSelectedStage(){
   return all_modes[selectedStage];  
 }
 
-
-// FAN //
-
-void setMainFanPwm(int val){
-  if(selTempCfg == NTEMPCONFIGS-1){
-    min_fan_speed = max(val, abs_min_fan_speed);
-    Serial.println("setMainFanPwm: setting min fan speed to" + String(min_fan_speed) );
-  }
-  setPwmVal(NLIGHTS, val);
-}
-
-hw_timer_t * timer_fan = NULL;
-bool timer_is_ON = false;
-void stopAutoFan(){
-  // (re)start alarm to startAutoFan in 30 mins
-  timerAlarmDisable(timer_fan);
-  timerRestart(timer_fan);
-  timerAlarmWrite(timer_fan, 30*600000, false);
-  timerAlarmEnable(timer_fan);
-  
-  if(!timer_is_ON){
-    Serial.println("fan timer going ON");
-    timer_is_ON = true;
-  } else {
-    Serial.println("fan timer going RESTART");
-  }
-}
-
-void IRAM_ATTR startAutoFan(){
-  if(timer_is_ON){
-    Serial.println("fan timer going OFF");
-    timer_is_ON = false;
-  } else {
-    Serial.println("fan timer going OFF, again?!");
-  }
-}
-
-// AUTO temp humid  control
-// have a max humid and temp, where if  above fan goes up, til back normal
-void processTempCfg(struct TempCfg temps_cfg, float temperature){
-  int pwmVal;
-  // bellow min temp
-  if(temperature < temps_cfg.temps[0]){
-    pwmVal = temps_cfg.fanSpeeds[0];
-  // above max temp
-  } else if(temperature >= temps_cfg.temps[temps_cfg.tempsSize-1]) {
-    pwmVal = temps_cfg.fanSpeeds[temps_cfg.tempsSize-1];
-  // temp is somewheree in thee midle
-  } else {
-    for(int i=1; i<temps_cfg.tempsSize;i++){
-    
-      if(temperature < temps_cfg.temps[i]){
-        pwmVal = temps_cfg.fanSpeeds[i]-(temps_cfg.fanSpeeds[i]-temps_cfg.fanSpeeds[i-1])*
-            ((temps_cfg.temps[i]-temperature)/(temps_cfg.temps[i]-temps_cfg.temps[i-1]));
-        //Serial.println( String(i)+" setting: fan to"+String(pwmVal)+" T"+String(temperature) );
-        break;
-      }
-    }
-  }
-  // power ratio
-  if(temps_cfg.lightPowerRatio > 0.0 && temps_cfg.lightPowerRatio <= 1.0){
-    pwmValsInfo pwmInfo = getPwmVals();
-  
-    int lightPowerAvg = 0;
-    for(int i=0; i<NLIGHTS;i++){
-      lightPowerAvg += pwmInfo.vals[i];
-    }
-    lightPowerAvg = lightPowerAvg/NLIGHTS;
-    //Serial.println("fan to"+String(pwmVal)+" T"+String(temperature) + " avg: "+ String(lightPowerAvg)  );
-  
-    pwmVal = temps_cfg.lightPowerRatio*(lightPowerAvg/255.0)*pwmVal + (1-temps_cfg.lightPowerRatio)*pwmVal;
-  
-    pwmVal = max(pwmVal, temps_cfg.fanSpeeds[0]);
-    //Serial.println( "PWM fan "+String(pwmVal));
-  }
-  // checks the set min
-  pwmVal = max(pwmVal, min_fan_speed);
-  setMainFanPwm(pwmVal);
-}
-
-void setTempConfig(int tempConfigN){
-  selTempCfg = tempConfigN;
-  if(timer_is_ON){
-    timer_is_ON = false;
-  }
-
-  if(all_temp_configs[selTempCfg].tempsSize == 0){
-    setMainFanPwm(all_modes[selectedStage].pwmVals[NLIGHTS]);
-    //Serial.println("no temp config to set, using stage default");
-  } else { 
-    updateFanSpeed();
-  }
-}
-
-int getTempConfigN(){
-  return selTempCfg;
-}
-
-int n_times_temp_nan = 0;
-void updateFanSpeed(){
-  if(timer_is_ON){
-    Serial.println("temp timer_is_ON! nothing done");
-    return;
-  }
-  
-  StageCfg selStageCfg = all_modes[selectedStage];
-  TempCfg temps_cfg = all_temp_configs[selTempCfg];
-  //Serial.println("temp csel: "+String(selTempCfg) + " N " + String(temps_cfg.tname));
-  if(temps_cfg.tempsSize > 0){
-    float temperature = readDHTTemperature();
-    if(!isnan(temperature)){
-      n_times_temp_nan = 0;
-      processTempCfg(temps_cfg, temperature);
-    }else {
-      if(n_times_temp_nan > 2){ 
-        setMainFanPwm(selStageCfg.pwmVals[NLIGHTS]);
-        if(n_times_temp_nan == 3) {
-          Serial.println("temp was NAN  3x! using  default from now on");
-          n_times_temp_nan++;
-        }
-      } else {
-        n_times_temp_nan++;
-      }
-    }
-  }
-}
-
 // STAGE - Lights //
 
 int prev_isStageON = -1;
@@ -354,7 +159,7 @@ void updateStage(){
     if(isStageON == false && selectedStage == prev_selectedStage){
     // when swiching the state off, saves the light vals
       pwmValsInfo pwmInfo = getPwmVals();  
-      for(int i=0; i<NPWMS;i++){
+      for(int i=0; i<NLIGHTS;i++){
         all_modes[selectedStage].pwmVals[i] = pwmInfo.vals[i];
       }
     }
@@ -455,14 +260,5 @@ void setupStages(){
   timerAlarmWrite(timer, 5*600000, true);
   timerAlarmEnable(timer);
 
-  // Setting a timer to use in startAutoFan()
-  timer_fan = timerBegin(1, 8000, true);
-  timerAttachInterrupt(timer_fan, &startAutoFan, true);
-  
   timerHandler();
-  // makes sure the fans starts
-  // the fan can have a speed as low as 40, but can not start with that
-  setMainFanPwm(80);
-  delay(2000);
-  setTempConfig(all_modes[selectedStage].temp_config);
 }

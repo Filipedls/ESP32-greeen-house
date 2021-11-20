@@ -9,6 +9,8 @@ const char* PARAM_INPUT = "value";
 int hour_on_slide_id = 420;
 int hours_off_slide_id = 421;
 
+int temp_offset_slide_id = 422;
+
 char slidarValsChar[28];
 
 int sliderID = 0;
@@ -68,7 +70,8 @@ const char index_html[] PROGMEM = R"rawliteral(
   <h5>light mode: %DROPDOWNPLACEHOLDER%</h5>
   %HOURONOFF%
   <h5>fan mode: %DROPDOWNFANPLACEHOLDER%</h5>
-  <br><br>
+  %FANTEMPOFFSET%
+  <br>
   <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
 </body>
 <script>
@@ -237,7 +240,7 @@ String processor(const String& var){
     int fanValue = getTempConfigN();
     for(int i=0; i<NTEMPCONFIGS; i++){
       buttons+= "<option value=\""+String(i)+"\" "+String(fanValue==i?"selected=\"selected\"":"")+
-      ">"+String(i+1)+". "+String(all_temp_configs[i].tname)+"</option>";
+      ">"+String(i+1)+". "+String(all_temp_configs[i]->tname)+"</option>";
     }
     buttons+= "</select>";
     return buttons;
@@ -252,6 +255,14 @@ String processor(const String& var){
      text += "<h5>Hs off: <input type=\"range\" onchange=\"updateSliderPWM(this, '" + hours_off_id +
       "')\" oninput=\"onslideSliderPWM(this, '" + hours_off_id + "')\" id=\"pwmSlider" + hours_off_id +"\" min=\"0\" max=\"24\" value=\""+ selStageCfg.n_hours_off + 
       "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ hours_off_id +"\">"+selStageCfg.n_hours_off+"</span></h5>";
+    return text;
+  } else if(var == "FANTEMPOFFSET"){
+    String temp_offset_id = String(temp_offset_slide_id);
+    String mid_fan_speed_temp_str = String(mid_fan_speed_temp);
+    String text = "<h5>T: <input type=\"range\" onchange=\"updateSliderPWM(this, '" + temp_offset_id +
+      "')\" oninput=\"onslideSliderPWM(this, '" + temp_offset_id + "')\" id=\"pwmSlider" + temp_offset_id +"\" min=\"15\" max=\"33\" value=\""+ mid_fan_speed_temp_str + 
+      "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ temp_offset_id +"\">"+mid_fan_speed_temp_str+"</span>&deg;C</h5>";
+     // hours off
     return text;
   }
   return String();
@@ -302,6 +313,8 @@ void setupServer(){
         setHourOn(sliderValueAux);
       } else if(sliderID == hours_off_slide_id){
         setNHoursOff(sliderValueAux);
+      } else if (sliderID == temp_offset_slide_id) {
+        setDynamicTemp(sliderValueAux);  
       } else if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
         setMainFanPwm(sliderValueAux);
         stopAutoFan();

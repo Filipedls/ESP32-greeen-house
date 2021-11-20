@@ -12,17 +12,18 @@ void setup(){
   setupTime(); // needs setupWiFi
   //setupLogs();
   setupStages(); // needs setupTime
+  setupFan(); 
   setupServer(); // needs setupTime, setupStages
   // wait 5s for the temp sensor
   delay(5000);
 }
  
 void loop(){
-  for(int i=1; i<6;i++){
+  for(int i=1; i<11;i++){
     updateFanSpeed();
-    if(i==1)
-      logTempHumidToGS();
+//    if(i==1)
+//      logTempHumidToGS();
       
-    delay(4*60000);
+    delay(2*60000);
   }
 }
