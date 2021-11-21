@@ -22,6 +22,13 @@ struct tm getTime() {
   return timeinfo;
 }
 
+void getHourMin(int *hour, int* mins) {
+  struct tm timeinfo;
+  timeinfo = getTime();
+  *hour = (int) timeinfo.tm_hour;
+  *mins = (int) timeinfo.tm_min;
+}
+
 int getHour() {
   struct tm timeinfo;
   timeinfo = getTime();

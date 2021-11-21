@@ -89,10 +89,13 @@ int getStage(){
   return selectedStage;
 }
 
-void processStageState(struct StageCfg stage, bool isStageON){
+int state_mode_2_pwms[NLIGHTS] = {0,0,0,0,30};
+void processStageState(struct StageCfg stage, int StageNum){
   int * pwmValsToSet;
-  if(isStageON){
+  if(StageNum==1){
     pwmValsToSet = stage.pwmVals;
+  } else if(StageNum==2){
+    pwmValsToSet = state_mode_2_pwms;
   } else {
     pwmValsToSet = stage_off.pwmVals;
   }
@@ -130,13 +133,16 @@ int prev_isStageON = -1;
 int prev_selectedStage = -1;
 void updateStage(){
   StageCfg selStageCfg = all_modes[selectedStage];
-  int hour = getHour();
-  bool isStageON = false;
+  //int hour = getHour();
+  int hour, mins;
+  getHourMin(&hour, &mins);
+  //Serial.println("Updating stage > h:"+String(hour)+" m:"+String(mins));
+  int StageNum = 0;
   // Determining the state of the stage
   if (selStageCfg.n_hours_off == 0) {
-    isStageON = true;
+    StageNum = 1;
   } else if (selStageCfg.n_hours_off == 24) {
-    isStageON = false;
+    StageNum = 0;
   } else {
     // Checks if the selected stage is ON
     int hour_off = getHourOff(selStageCfg);
@@ -144,27 +150,32 @@ void updateStage(){
     //Serial.println("Updating stage: on "+String(hour_on)+"  off "+String(hour_off));
     if(hour_on <= hour_off){
       if(hour >= hour_on && hour < hour_off)
-        isStageON = true;
+        StageNum = 1;
     } else {
       if(hour >= hour_on || hour < hour_off)
-        isStageON = true;
+        StageNum = 1;
     }
+    // pre-stage
+    if((hour == hour_on && mins < 20) ||
+       ((hour == hour_off && mins < 20))
+      )
+      StageNum = 2;
   }
   // Precessing the stage's state
-  if(isStageON != prev_isStageON || selectedStage != prev_selectedStage) {
-    if(isStageON == false && selectedStage == prev_selectedStage){
+  if(StageNum != prev_isStageON || selectedStage != prev_selectedStage) {
+    if((StageNum == 2 || StageNum == 0) && prev_isStageON == 1 && selectedStage == prev_selectedStage){
     // when swiching the state off, saves the light vals
       pwmValsInfo pwmInfo = getPwmVals();  
       for(int i=0; i<NLIGHTS;i++){
         all_modes[selectedStage].pwmVals[i] = pwmInfo.vals[i];
       }
     }
-    processStageState(selStageCfg, isStageON);
+    processStageState(selStageCfg, StageNum);
     Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
       hour, prev_selectedStage, selectedStage, 
-      prev_isStageON?"ON":"OFF", isStageON?"ON":"OFF"
+      prev_isStageON?"ON":"OFF", StageNum?"ON":"OFF"
     );
-    prev_isStageON = isStageON;
+    prev_isStageON = StageNum;
     prev_selectedStage = selectedStage;
   }
 }

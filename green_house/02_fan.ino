@@ -91,9 +91,8 @@ void restoreFanMode(){
   propagateDynamicTemp(mid_fan_speed_temp_mem);
   // fand mode
   int selTempCfg_mem = EEPROM.read(EEPROM_TM_IDX);
-  if(selTempCfg_mem >= NTEMPCONFIGS || selTempCfg_mem < 0)
-    selTempCfg_mem = selTempCfg;
-  selTempCfg = selTempCfg_mem;
+  if(selTempCfg_mem < NTEMPCONFIGS && selTempCfg_mem >= 0)
+    selTempCfg = selTempCfg_mem;
 }
 
 void propagateDynamicTemp(int mid_fan_speed_temp_new_val){
@@ -186,7 +185,7 @@ void setPIDfanSpeed(float temp, float lightPowerRatio){
   int lightPowerAvg = getAvgLightPower();
   // mid_fan_speed_temp is the temo goal for the PID
   err = temp - mid_fan_speed_temp;
-  // to remove the lag from the integral part, we clip it at zero
+  // to remove the lag from the integral part, we clip the err_sum between zero and 100
   // otherwise takes to long to react, once when negative, needs to catch up to the positive error
   err_sum = min(max(err_sum + err,float(0.0)), float(100.0));
 
