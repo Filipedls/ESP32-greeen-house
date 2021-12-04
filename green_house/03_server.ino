@@ -35,7 +35,9 @@ const char index_html[] PROGMEM = R"rawliteral(
      display: inline-block;
      margin: 0px auto;
      text-align: center;
+     background-color: lightgray;
     }
+    input { background-color: lightgray; width: min(50vw, 220px); }
     h2 { font-size: 2.0rem; }
     p { font-size: 1.5rem; }
     .units { font-size: 1.2rem; }
@@ -53,7 +55,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   </style>
 </head>
 <body>
-  <h3>the greens in a box</h3>
+  <h3>Greenkea</h3>
   <p>
     <i class="fas fa-thermometer-half" style="color:#059e8a;"></i> 
     <span id="temperature">%TEMPERATURE%</span>
@@ -261,14 +263,16 @@ String processor(const String& var){
     String temp_offset_id = String(temp_offset_slide_id);
     String mid_fan_speed_temp_str = String(mid_fan_speed_temp);
     String text = "<h5>T: <input type=\"range\" onchange=\"updateSliderPWM(this, '" + temp_offset_id +
-      "')\" oninput=\"onslideSliderPWM(this, '" + temp_offset_id + "')\" id=\"pwmSlider" + temp_offset_id +"\" min=\"15\" max=\"33\" value=\""+ mid_fan_speed_temp_str + 
+      "')\" oninput=\"onslideSliderPWM(this, '" + temp_offset_id + "')\" id=\"pwmSlider" + temp_offset_id +"\" min=\"20\" max=\"33\" value=\""+ mid_fan_speed_temp_str + 
       "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ temp_offset_id +"\">"+mid_fan_speed_temp_str+"</span>&deg;C</h5>";
      // hours off
     return text;
   } else if(var == "WARNS") {
     String text = "<span style=\"color:red\">";
     if(n_times_temp_nan > 2)
-      text += "temp is nan 3x!";
+      text += "temp is nan 3x!<br>";
+    if(max_fan_speed_warn)
+      text += "Temperature above the allowed max, reseting the max fan speed!<br>";
     text += "</span>";
     return text;
   }
@@ -327,8 +331,8 @@ void setupServer(){
         stopAutoFan();
         //Serial.println("pwmID FAN stopAutoFan");
       } else {
-        setPwmVal(sliderID, sliderValueAux);
-        Serial.println("pwmID "+ String(sliderID)+" V" + String(sliderValueAux));
+        setPwmLight(sliderID, sliderValueAux);
+        //Serial.println("Light "+ String(sliderID)+" V" + String(sliderValueAux));
       }
     }
     else {

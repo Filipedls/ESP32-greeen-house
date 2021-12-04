@@ -1,9 +1,5 @@
-// include library to read and write from flash memory
-#include <EEPROM.h>
-
-// define the number of bytes you want to access
-#define EEPROM_STAGE_SIZE 1
-#define EEPROM_IDX 0
+// TODO agg pre-stage vars
+// TODO sync updateStage() and updateFanSpeed() (runs after)
 
 int selectedStage = 0;
 
@@ -29,13 +25,6 @@ StageCfg stage_off = {
 
 #define NSTAGES 6
 StageCfg all_modes[NSTAGES] {
-    { // Stage 0 - sprout
-    "sprout",
-    // PWM for lights
-    {0,0,63,63,0},
-    // hour ON and OFF
-    20,3
-  },
   { // Stage 1 - grow
     "grow",
     // PWM for lights
@@ -43,21 +32,28 @@ StageCfg all_modes[NSTAGES] {
     // hour ON and OFF
     20,4
   },
-  { // Stage 2 - late-grow
-    "late_grow",
-    // PWM for lights
-    {120,120,255,255,127},
-    // hour ON and OFF
-    20,6
-  },
-  { // Stage 3 - flower
+  { // Stage 2 - flower
     "flower",
     // PWM for lights
     {255,255,255,255,255},
     // hour ON and OFF
     20,6
   },
-  // Stage 4 - OFF
+  { // Stage 3 - late-grow
+    "open door",
+    // PWM for lights
+    {20,20,255,255,90},
+    // hour ON and OFF
+    0,0
+  },
+  { // Stage 4 - sprout
+    "photo",
+    // PWM for lights
+    {0,0,255,255,0},
+    // hour ON and OFF
+    0,0
+  },
+  // Stage 5 - OFF
   stage_off,
   { // Stage 5
     "ON",
@@ -69,20 +65,48 @@ StageCfg all_modes[NSTAGES] {
 };
 
 
+void setPwmLight(int pwmID, int val){
+  if(pwmID<NLIGHTS){
+    setPwmVal(pwmID, val);
+    // saves the new val in the selected stage
+    all_modes[selectedStage].pwmVals[pwmID] = val;
+    Serial.println("Light "+ String(pwmID)+" V" + String(val));
+  }
+}
+
 void setStage(int stageVal){
   selectedStage = stageVal;
-  EEPROM.write(EEPROM_IDX, stageVal);
-  EEPROM.commit();
+  setMemStageVal(stageVal);
   updateStage();
 }
 
 void restoreStage(){
-  // initialize EEPROM with predefined size
-  //EEPROM.begin(EEPROM_STAGE_SIZE);
-  selectedStage = EEPROM.read(EEPROM_IDX);
-  
+  selectedStage = getMemStageVal();
   if(selectedStage > NSTAGES-1 || selectedStage < 0)
     selectedStage = 0;
+}
+
+void saveStageLightsVals(){
+
+  int vals[NSTAGES*NLIGHTS];
+  for(int r=0; r < NSTAGES; r++){
+    for(int c=0; c < NLIGHTS; c++){
+      vals[r*NLIGHTS+c] = all_modes[r].pwmVals[c];//, vals[r*n_lights+c]);
+    }
+  }
+  setMemStageLightVals(NSTAGES*NLIGHTS, vals);
+  Serial.println("Light stage vals saved! :)");
+}
+
+void restoreStageLightsVals(){
+  for(int r=0; r < NSTAGES; r++){
+    for(int c=0; c < NLIGHTS; c++){
+      int read_val = getMemStageLightVal(r*NLIGHTS+c);
+      if(read_val >= 0 && read_val <= 255)
+        all_modes[r].pwmVals[c] = read_val;
+    }
+  }
+  Serial.println("Light stage vals restored! :)");
 }
 
 int getStage(){
@@ -156,19 +180,19 @@ void updateStage(){
         StageNum = 1;
     }
     // pre-stage
-    if((hour == hour_on && mins < 20) ||
-       ((hour == hour_off && mins < 20))
-      )
+    if((hour == hour_on && mins < 20) || ((hour == hour_off && mins < 20)))
       StageNum = 2;
   }
   // Precessing the stage's state
   if(StageNum != prev_isStageON || selectedStage != prev_selectedStage) {
-    if((StageNum == 2 || StageNum == 0) && prev_isStageON == 1 && selectedStage == prev_selectedStage){
-    // when swiching the state off, saves the light vals
+    if(StageNum != 1 && prev_isStageON == 1 && selectedStage == prev_selectedStage){
+    /* TODO / when swiching the state off, saves the light vals
       pwmValsInfo pwmInfo = getPwmVals();  
       for(int i=0; i<NLIGHTS;i++){
         all_modes[selectedStage].pwmVals[i] = pwmInfo.vals[i];
       }
+      /*/
+      saveStageLightsVals();
     }
     processStageState(selStageCfg, StageNum);
     Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
@@ -257,7 +281,9 @@ void IRAM_ATTR timerHandler() {
 }
 
 void setupStages(){
+  setupEEPROM(NSTAGES, NLIGHTS);
   restoreStage();
+  restoreStageLightsVals();
 
   // Setting a timer to run updateStage()
   // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535

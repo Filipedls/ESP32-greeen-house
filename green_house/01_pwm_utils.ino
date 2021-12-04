@@ -49,7 +49,6 @@ struct pwmValsInfo getPwmVals(){
   return pwmInfo;
 }
 
-
 void setPwmVal(int pwmID, int val){
   ledcWrite(pwmID, val);
   pwmVals[pwmID] = val;

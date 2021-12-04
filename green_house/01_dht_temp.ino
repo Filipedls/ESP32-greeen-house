@@ -12,6 +12,7 @@
 DHT dht(DHTPIN, DHTTYPE);
 
 float readDHTTemperature() {
+  //return 26.5;
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float t;
   for(int i = 0; i < NTRIES; i++){
@@ -28,6 +29,7 @@ float readDHTTemperature() {
 }
 
 float readDHTHumidity() {
+  //return 46.5;
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float h;
   for(int i = 0; i < NTRIES; i++){
@@ -43,6 +45,7 @@ float readDHTHumidity() {
 
 
 String readDHTTemperatureHumidity() {
+  //return String(26.5)+","+String(46.5);
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float t = NAN;
   float h = NAN;
