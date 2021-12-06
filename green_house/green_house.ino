@@ -5,6 +5,7 @@ void setup(){
   Serial.begin(115200);
 
   // Setup's  `x)
+  setupEEPROM();
   setupPWM();
   setupDHT();
   setupWiFi();
@@ -35,9 +36,9 @@ void loop(){
     previousMillis = millis();
     
     updateFanSpeed();
-    if(i==1)
-      logTempHumidToGS();
-      
+//    if(i==1)
+//      logTempHumidToGS();
+//      
     //delay(interval);
     //delay( max(interval-(millis()-previousMillis), (unsigned long)(0) ) );
     while (millis() < previousMillis + interval);

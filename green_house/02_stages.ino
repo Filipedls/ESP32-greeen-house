@@ -3,6 +3,7 @@
 
 int selectedStage = 0;
 
+// todo change to uint8_t
 struct StageCfg {
     char sname[20]; 
     int pwmVals[NLIGHTS];
@@ -82,31 +83,46 @@ void setStage(int stageVal){
 
 void restoreStage(){
   selectedStage = getMemStageVal();
-  if(selectedStage > NSTAGES-1 || selectedStage < 0)
-    selectedStage = 0;
 }
 
 void saveStageLightsVals(){
 
-  int vals[NSTAGES*NLIGHTS];
-  for(int r=0; r < NSTAGES; r++){
-    for(int c=0; c < NLIGHTS; c++){
-      vals[r*NLIGHTS+c] = all_modes[r].pwmVals[c];//, vals[r*n_lights+c]);
-    }
-  }
-  setMemStageLightVals(NSTAGES*NLIGHTS, vals);
+//  int vals[NSTAGES*NLIGHTS];
+//  for(int r=0; r < NSTAGES; r++){
+//    for(int c=0; c < NLIGHTS; c++){
+//      vals[r*NLIGHTS+c] = all_modes[r].pwmVals[c];//, vals[r*n_lights+c]);
+//    }
+//  }
+//  setMemStageLightVals(NSTAGES*NLIGHTS, vals);
+
+
+  setMemLightModes(all_modes, sizeof(all_modes));
+
+  
   Serial.println("Light stage vals saved! :)");
 }
 
 void restoreStageLightsVals(){
-  for(int r=0; r < NSTAGES; r++){
-    for(int c=0; c < NLIGHTS; c++){
-      int read_val = getMemStageLightVal(r*NLIGHTS+c);
-      if(read_val >= 0 && read_val <= 255)
-        all_modes[r].pwmVals[c] = read_val;
-    }
-  }
+//  int read_vals[NSTAGES*NLIGHTS];
+//  int size_vals = getMemStageLightVals(NSTAGES*NLIGHTS, read_vals);
+//  if(size_vals == NSTAGES*NLIGHTS) {
+//    for(int r=0; r < NSTAGES; r++){
+//      for(int c=0; c < NLIGHTS; c++){
+//        
+//        int read_val = read_vals[r*NLIGHTS+c];
+//        if(read_val >= 0 && read_val <= 255)
+//          all_modes[r].pwmVals[c] = read_val;
+//      }
+//    }
+//    Serial.println("Light stage vals restored! :)");
+//  } else {
+//    Serial.println("Light stage vals not restored! :( size: "+String(size_vals));
+//  }
+
+  getMemLightModes(all_modes);
   Serial.println("Light stage vals restored! :)");
+  
+  Serial.println("restoreStageLightsVals: size is "+String(sizeof(all_modes)));
 }
 
 int getStage(){
@@ -281,7 +297,6 @@ void IRAM_ATTR timerHandler() {
 }
 
 void setupStages(){
-  setupEEPROM(NSTAGES, NLIGHTS);
   restoreStage();
   restoreStageLightsVals();
 
