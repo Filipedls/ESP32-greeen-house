@@ -41,6 +41,7 @@ TempCfg main_temp_config = {
 // will have a 2C offset from zero to 100%
 // e.g.: for a 26 (3 offset) val means the temp profile will start at 23C (0%)
 //       and end at 29 (100%) 
+
 int mid_fan_speed_temp = 26;
 // offset of 2C
 int temp_offset = 3;
@@ -119,8 +120,9 @@ void setDynamicTemp(int mid_fan_speed_temp_new_val){
   propagateDynamicTemp(mid_fan_speed_temp_new_val);
   if(isFanModeOFF())
     no_max_fan_speed_temp = mid_fan_speed_temp_new_val;
-  
-  updateFanSpeed();
+
+  float temperature = readDHTTemperature();
+  updateFanSpeed(temperature);
   // when the mid_fan_speed_temp is manually set the warn is cleared
   if(max_fan_speed_warn) max_fan_speed_warn = false;
   
@@ -161,7 +163,8 @@ void setTempConfig(int tempConfigN){
     timer_is_ON = false;
   }
   setMemFanModeNum(selTempCfg);
-  updateFanSpeed();
+  float temperature = readDHTTemperature();
+  updateFanSpeed(temperature);
 }
 
 int getTempConfigN(){
@@ -186,7 +189,7 @@ float kI = 0.03;
 float kD = 0.1;
 float kP = 0.4;
 int dt = 1; // 1 min?
-float kI_decay = 0.05;
+float kI_decay = 0.03;
 
 // aux vars
 bool prev_cycle_was_PID = false;
@@ -208,13 +211,13 @@ int setPIDfanSpeed(float temp, float lightPowerRatio){
   
   // to remove the lag from the integral part, we clip the err_sum at zero and decay it
   // otherwise takes to long to react
-  err_sum = max(err_sum*(1-kI_decay),float(0.0));
-  err_sum = err_sum + err;
+  err_sum = max(err_sum*(1-kI_decay) + err,float(0.0));
 
   // a ratio of 1 mean the PID val is 100% propotional to the avg_light_power, 0 doesnt care about lights
   float power_coef = lightPowerRatio*lightPowerAvg + (1-lightPowerRatio)*MAX_PWM_FAN;
 
-  int speed_val = min_fan_speed + (kP*err + kI*err_sum*dt + kD*(err-prev_err)/dt) * power_coef * ((MAX_PWM_FAN-min_fan_speed)/MAX_PWM_FAN);
+  // max(err,float(0) - we dont wat the P control to be neg, cuts the Diff part off when the fan is at min speed
+  int speed_val = min_fan_speed + (kP*max(err,float(0)) + kI*err_sum*dt + kD*(err-prev_err)/dt) * power_coef * ((MAX_PWM_FAN-min_fan_speed)/MAX_PWM_FAN);
   // speed cannot be bellow zero and above 255
   speed_val = min(max(speed_val, 0), int(MAX_PWM_FAN));
   prev_err = err;
@@ -254,7 +257,7 @@ int processTempCfg(struct TempCfg temps_cfg, float temperature){
 }
 
 int n_times_temp_nan = 0;
-void updateFanSpeed(){
+void updateFanSpeed(float temperature){
   if(timer_is_ON){
     //Serial.println("temp timer_is_ON! nothing done");
     return;
@@ -267,7 +270,7 @@ void updateFanSpeed(){
     setMainFanPwm(default_fan_speed);
     prev_cycle_was_PID = false; 
   } else if(temps_cfg.tempsSize > 0 || temps_cfg.lightPowerRatio >= 0.0){
-    float temperature = readDHTTemperature();
+    //float temperature = readDHTTemperature();
     if(!isnan(temperature)){
       int aux_fan_speed; 
       n_times_temp_nan = 0;
@@ -313,7 +316,6 @@ void setupFan(){
   
   // makes sure the fans starts
   // the fan can have a speed as low as 40, but can not start with that
-  // TODO BUG when the start mode is off this set the min temp to 80!!!
-  setMainFanPwm(80);
-  delay(2000);
+  setPwmVal(NLIGHTS, 80);
+  delay(1500);
 }

@@ -1,4 +1,4 @@
-// TODO agg pre-stage vars
+// TODO clean up pre-stage vars
 // TODO sync updateStage() and updateFanSpeed() (runs after)
 
 int selectedStage = 0;
@@ -10,7 +10,6 @@ struct StageCfg {
     // hour (24h) that the light goes on
     int hour_on;
     // n hours off
-    //int hour_off;
     int n_hours_off;
 };
 
@@ -64,7 +63,12 @@ StageCfg all_modes[NSTAGES] {
     0,0
   }
 };
+// lights pwm config for state 2 of the light (20 mins bef and after lights on)
+int lights_state_2_pwms[NLIGHTS] = {0,0,0,0,30};
 
+int max_temp_lights = 30;
+
+/// Methods
 
 void setPwmLight(int pwmID, int val){
   if(pwmID<NLIGHTS){
@@ -78,64 +82,35 @@ void setPwmLight(int pwmID, int val){
 void setStage(int stageVal){
   selectedStage = stageVal;
   setMemStageVal(stageVal);
-  updateStage();
+  updateStage(NAN);
+  if(selectedStage == NSTAGES-2)// off
+    saveLightModes();
 }
 
 void restoreStage(){
   selectedStage = getMemStageVal();
 }
 
-void saveStageLightsVals(){
-
-//  int vals[NSTAGES*NLIGHTS];
-//  for(int r=0; r < NSTAGES; r++){
-//    for(int c=0; c < NLIGHTS; c++){
-//      vals[r*NLIGHTS+c] = all_modes[r].pwmVals[c];//, vals[r*n_lights+c]);
-//    }
-//  }
-//  setMemStageLightVals(NSTAGES*NLIGHTS, vals);
-
-
+void saveLightModes(){
   setMemLightModes(all_modes, sizeof(all_modes));
-
-  
-  Serial.println("Light stage vals saved! :)");
+  Serial.println("Light modes saved! :)");
 }
 
-void restoreStageLightsVals(){
-//  int read_vals[NSTAGES*NLIGHTS];
-//  int size_vals = getMemStageLightVals(NSTAGES*NLIGHTS, read_vals);
-//  if(size_vals == NSTAGES*NLIGHTS) {
-//    for(int r=0; r < NSTAGES; r++){
-//      for(int c=0; c < NLIGHTS; c++){
-//        
-//        int read_val = read_vals[r*NLIGHTS+c];
-//        if(read_val >= 0 && read_val <= 255)
-//          all_modes[r].pwmVals[c] = read_val;
-//      }
-//    }
-//    Serial.println("Light stage vals restored! :)");
-//  } else {
-//    Serial.println("Light stage vals not restored! :( size: "+String(size_vals));
-//  }
-
+void restoreLightModes(){
   getMemLightModes(all_modes);
-  Serial.println("Light stage vals restored! :)");
-  
-  Serial.println("restoreStageLightsVals: size is "+String(sizeof(all_modes)));
+  //Serial.println("restoreLightModes: Light modes restored! :) size is "+String(sizeof(all_modes)));
 }
 
 int getStage(){
   return selectedStage;
 }
 
-int state_mode_2_pwms[NLIGHTS] = {0,0,0,0,30};
 void processStageState(struct StageCfg stage, int StageNum){
   int * pwmValsToSet;
   if(StageNum==1){
     pwmValsToSet = stage.pwmVals;
   } else if(StageNum==2){
-    pwmValsToSet = state_mode_2_pwms;
+    pwmValsToSet = lights_state_2_pwms;
   } else {
     pwmValsToSet = stage_off.pwmVals;
   }
@@ -150,11 +125,11 @@ void processStageState(struct StageCfg stage, int StageNum){
 
 void setHourOn(int hour_on){
   all_modes[selectedStage].hour_on = hour_on;
-  updateStage();
+  updateStage(NAN);
 }
 void setNHoursOff(int n_hours_off){
   all_modes[selectedStage].n_hours_off = n_hours_off;
-  updateStage();
+  updateStage(NAN);
 }
 int getHourOff(struct StageCfg stage){
   int hour_off = stage.hour_on - stage.n_hours_off;
@@ -171,8 +146,16 @@ struct StageCfg getSelectedStage(){
 
 int prev_isStageON = -1;
 int prev_selectedStage = -1;
-void updateStage(){
+void updateStage(float temperature){
   StageCfg selStageCfg = all_modes[selectedStage];
+  //float temperature = readDHTTemperature();
+  if(!isnan(temperature) && temperature > max_temp_lights){
+    // turns off the lights by forcing the state to 0
+    processStageState(selStageCfg, 0);
+    prev_isStageON = 0;
+    Serial.println("updateStage > TEMPS ABOVE " + String(max_temp_lights) +" (" +String(temperature) + ") LIGHTS OFF!");
+    return; 
+  }
   //int hour = getHour();
   int hour, mins;
   getHourMin(&hour, &mins);
@@ -202,13 +185,8 @@ void updateStage(){
   // Precessing the stage's state
   if(StageNum != prev_isStageON || selectedStage != prev_selectedStage) {
     if(StageNum != 1 && prev_isStageON == 1 && selectedStage == prev_selectedStage){
-    /* TODO / when swiching the state off, saves the light vals
-      pwmValsInfo pwmInfo = getPwmVals();  
-      for(int i=0; i<NLIGHTS;i++){
-        all_modes[selectedStage].pwmVals[i] = pwmInfo.vals[i];
-      }
-      /*/
-      saveStageLightsVals();
+    // when swiching the state off, saves the light vals
+      saveLightModes();
     }
     processStageState(selStageCfg, StageNum);
     Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
@@ -289,24 +267,25 @@ void sunRise(struct StageCfg selStageCfg){
 //  // CHANGE or RISING mode
 //  attachInterrupt(digitalPinToInterrupt(sensorPin), attachHaddler, CHANGE);
 
-hw_timer_t * timer = NULL;
 
-void IRAM_ATTR timerHandler() {
-  //if(time_failed)
-  updateStage();
-}
+//hw_timer_t * timer = NULL;
+//
+//void IRAM_ATTR timerHandler() {
+//  //if(time_failed)
+//  updateStage();
+//}
 
 void setupStages(){
   restoreStage();
-  restoreStageLightsVals();
+  restoreLightModes();
 
-  // Setting a timer to run updateStage()
-  // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535
-  timer = timerBegin(0, 8000, true);
-  timerAttachInterrupt(timer, &timerHandler, true);
-  // alarm to updateStage every  5 mins
-  timerAlarmWrite(timer, 5*600000, true);
-  timerAlarmEnable(timer);
+//  // Setting a timer to run updateStage()
+//  // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535
+//  timer = timerBegin(0, 8000, true);
+//  timerAttachInterrupt(timer, &timerHandler, true);
+//  // alarm to updateStage every  5 mins
+//  timerAlarmWrite(timer, 5*600000, true);
+//  timerAlarmEnable(timer);
 
-  timerHandler();
+  updateStage(NAN);
 }

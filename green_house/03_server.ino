@@ -1,5 +1,3 @@
-//#include "00_pwm_utils"
-//#include "01_stages"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
@@ -11,7 +9,7 @@ int hours_off_slide_id = 421;
 
 int temp_offset_slide_id = 422;
 
-char slidarValsChar[28];
+char slidarValsChar[100];
 
 int sliderID = 0;
 const char* PARAM_INPUT_ID = "id";
@@ -19,7 +17,6 @@ const char* PARAM_INPUT_ID = "id";
 int getSliderID = 0;
 
 const char* PARAM_INPUT_CB_STATE = "state";
-
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -63,7 +60,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <i class="fas fa-tint" style="color:#00add6;"></i> 
     <span id="humidity">%HUMIDITY%</span>
     <sup class="units">&percnt;</sup>
-    <button type="button" onclick="updateTempHumd(this)">R</button>
+    <button type="button" onclick="updateSensorsSliders(this)">R</button>
   </p>
   <h6>%DATETIME%</h6>
   <h4>Lights</h4>
@@ -98,73 +95,41 @@ function updateSliderPWM(element, slider_id) {
   xhr.send();
 }
 
-function toggleCheckbox(element) {
+function dowpdownChanged(element, update_url) {
   var xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      getAllLightVal();
+      updateSensorsSliders();
     }
   };
-  if(element.checked){ xhr.open("GET", "/updatestage?state=1", true); }
-  else { xhr.open("GET", "/updatestage?state=0", true); }
+  xhr.open("GET", "/"+update_url+"?state="+element.value, true);
   xhr.send();
 }
 
-
-function dowpdownChanged(element) {
-  var xhr = new XMLHttpRequest();
-  xhr.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      getAllLightVal();
-    }
-  };
-  xhr.open("GET", "/updatestage?state="+element.value, true);
-  xhr.send();
-}
-
-function fanDowpdownChanged(element) {
-  var xhr = new XMLHttpRequest();
-  xhr.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      getAllLightVal();
-    }
-  };
-  xhr.open("GET", "/updatefanstate?state="+element.value, true);
-  xhr.send();
-}
-
-function updateTempHumd(elem) {
+function updateSensorsSliders(elem) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      var sensor_vals = this.responseText.split(",");
+      var all_vals = this.responseText.split(";");
+      // temp hum
+      var sensor_vals = all_vals[0].split(",");
       document.getElementById("temperature").innerHTML = sensor_vals[0];
       document.getElementById("humidity").innerHTML = sensor_vals[1];
-      elem.style.backgroundColor = null;
-    }
-    // TODO: one call to rule them all
-    getAllLightVal();
-  };
-  xhttp.open("GET", "/getsensorvals", true);
-  xhttp.send();
-  elem.style.backgroundColor = "red";
-}
-//setInterval(updateTempHumd, 60000 ) ;
-
-function getAllLightVal() {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-    if (this.readyState == 4 && this.status == 200) {
-      var light_vals = this.responseText.split(",");
-      for (var x = 0; x < light_vals.length;x++) {
-        document.getElementById("textSliderValueLight"+x).innerHTML = light_vals[x];
-        document.getElementById("pwmSlider"+x).value = light_vals[x];
+      // slider
+      for (var x = 1; x < all_vals.length;x++) {
+        var id_vals = all_vals[x].split(":");
+        document.getElementById("textSliderValueLight"+id_vals[0]).innerHTML = id_vals[1];
+        document.getElementById("pwmSlider"+id_vals[0]).value = id_vals[1];
       }
+      if(elem != undefined){elem.style.backgroundColor = null;}
     }
   };
-  xhttp.open("GET", "/slidervalues", true);
+  xhttp.open("GET", "/getsenslivals", true);
   xhttp.send();
+  if(elem != undefined){elem.style.backgroundColor = "red";}
+
 }
+//setInterval(updateSensorsSliders, 60000 ) ;
 
 function buttonRestart(elem) {
   if (confirm("Are you sure?")) {
@@ -182,21 +147,11 @@ function buttonRestart(elem) {
     xhr.open("GET", "/restartesp", true);
     xhr.send();
   }
-}//setTimeout(getAllLightVal, 600000);
-//getAllLightVal();
+}
 console.log("done setuping");
 </script>
 </html>
 )rawliteral";
-
-String switchStateStr(){
-    if(getStage()){
-      return "checked";
-    }
-    else {
-      return "";
-    }
-}
 
 // Replaces placeholder with DHT values
 String processor(const String& var){
@@ -206,14 +161,6 @@ String processor(const String& var){
   }
   else if(var == "HUMIDITY"){
     return String(readDHTHumidity());
-  } else if(var == "BUTTONPLACEHOLDER"){
-    String buttons ="";
-    for(int i=1; i<=1; i++){
-      String stateValue = switchStateStr();
-      buttons+= "<h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"" 
-      + String(i) + "\" "+ stateValue +"><span class=\"slider\"></span></label></h4>";
-    }
-    return buttons;
   } else if (var == "SLIDERSPLACEHOLDER"){
     String buttons ="";
     pwmValsInfo sliderInfo = getPwmVals();
@@ -230,7 +177,7 @@ String processor(const String& var){
   } else if (var == "DATETIME"){
     return getDateTime();
   } else if(var == "DROPDOWNPLACEHOLDER"){
-    String buttons ="<select id=\"stagesdropdown\" onchange=\"dowpdownChanged(this)\">";
+    String buttons ="<select id=\"stagesdropdown\" onchange=\"dowpdownChanged(this,'updatestage')\">";
     int stateValue = getStage();
     for(int i=0; i<NSTAGES; i++){
       buttons+= "<option value=\""+String(i)+"\" "+String(stateValue==i?"selected=\"selected\"":"")+
@@ -239,7 +186,7 @@ String processor(const String& var){
     buttons+= "</select>";
     return buttons;
   } else if(var == "DROPDOWNFANPLACEHOLDER"){
-    String buttons ="<select id=\"fandropdown\" onchange=\"fanDowpdownChanged(this)\">";
+    String buttons ="<select id=\"fandropdown\" onchange=\"dowpdownChanged(this,'updatefanstate')\">";
     int fanValue = getTempConfigN();
     for(int i=0; i<NTEMPCONFIGS; i++){
       buttons+= "<option value=\""+String(i)+"\" "+String(fanValue==i?"selected=\"selected\"":"")+
@@ -289,28 +236,25 @@ void setupServer(){
     delay(1000);
     ESP.restart();
   });
-  server.on("/getsensorvals", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", readDHTTemperatureHumidity().c_str());
-  });
 
-  // Send a the value of a light /slidervalue
-  server.on("/slidervalues", HTTP_GET, [] (AsyncWebServerRequest *request) {
-    // GET input1 value on <ESP_IP>/slidervalues
+  // Send a the value of the sensors and light /getsenslivals
+  server.on("/getsenslivals", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    float t = NAN;
+    float h = NAN;
+    readDHTTemperatureHumidity(&t, &h);
+    sprintf(slidarValsChar, "%.2f,%.2f", t,h);
+    
     pwmValsInfo sliderInfo = getPwmVals();
-
-    //slidarValsChar = "";
-    sprintf(slidarValsChar, "%i", sliderInfo.vals[0]);
-    for(int i=1; i < sliderInfo.lenght; i++){
+    for(int i=0; i < sliderInfo.lenght; i++){
       //slidarValsChar+= String(sliderInfo.vals[i]);
-      sprintf(slidarValsChar, "%s,%i", slidarValsChar, sliderInfo.vals[i]);
-//      if(i != sliderInfo.lenght-1){
-//        slidarValsChar+=",";
-//      }
+      sprintf(slidarValsChar, "%s;%i:%i", slidarValsChar, i, sliderInfo.vals[i]);
     }
-//    sprintf(slidarValsChar, "%i,%i,%i,%i,%i,%i", 
-//      sliderInfo.vals[0], sliderInfo.vals[1], sliderInfo.vals[2],
-//      sliderInfo.vals[3], sliderInfo.vals[4], sliderInfo.vals[5]);
-
+    
+    StageCfg selStageCfg = getSelectedStage();
+    sprintf(slidarValsChar, "%s;%i:%i", slidarValsChar, hour_on_slide_id, selStageCfg.hour_on);
+    sprintf(slidarValsChar, "%s;%i:%i", slidarValsChar, hours_off_slide_id, selStageCfg.n_hours_off);
+    
+    //Serial.println("sv "+String(slidarValsChar)+" - "+selStageCfg.sname+" "+String(selStageCfg.hour_on)+String(selStageCfg.n_hours_off));
     request->send_P(200, "text/plain", slidarValsChar);
   });
 

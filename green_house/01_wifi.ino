@@ -80,5 +80,5 @@ void setupWiFi(){
     Serial.print(".");
     delay(1000);
   }
-  delay(1000);
+  delay(1500);
 }

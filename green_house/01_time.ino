@@ -7,13 +7,18 @@ const char* ntpServer = "pool.ntp.org";
 unsigned long epochTime; 
 
 // Function that gets current epoch time
-// todo: time failed mode? 
+// todo: time failed mode?
+const int max_gtime_tries = 3;
 struct tm getTime() {
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    Serial.println("Failed to obtain time");
-    return timeinfo;
+  int n_tries = 0;
+  while (n_tries > max_gtime_tries-1 || !getLocalTime(&timeinfo)) {
+    n_tries++;
+    //Serial.println("Obtaining time try n " + String(n_tries));
+    delay(500);
+    //return timeinfo;
   }
+  if(n_tries == max_gtime_tries) Serial.println("Failed to obtain time!");
   //time(&now);
   //Serial.println(&timeinfo, "It's %A, %B %d %Y %H:%M:%S");
   return timeinfo;

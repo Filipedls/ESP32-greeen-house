@@ -12,7 +12,7 @@
 DHT dht(DHTPIN, DHTTYPE);
 
 float readDHTTemperature() {
-  //return 26.5;
+  //return mid_fan_speed_temp;//26.5;
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float t;
   for(int i = 0; i < NTRIES; i++){
@@ -44,8 +44,10 @@ float readDHTHumidity() {
 }
 
 
-String readDHTTemperatureHumidity() {
-  //return String(26.5)+","+String(46.5);
+void readDHTTemperatureHumidity(float * rt, float * rh) {
+  //*rt = readDHTTemperature();
+  //*rh = readDHTHumidity();
+  //return;
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float t = NAN;
   float h = NAN;
@@ -58,12 +60,14 @@ String readDHTTemperatureHumidity() {
 
     if (!isnan(h) && !isnan(t)){
       //Serial.println("TH "+String(t)+","+String(h)+" i"+String(i));
-      return String(t)+","+String(h);
+      *rt = t;
+      *rh = h;
+      return;
     }
     delay(5);
   }
   Serial.println("Failed to read humidity from DHT sensor!");
-  return "--";
+  return;
 }
 
 void setupDHT(){
