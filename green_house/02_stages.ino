@@ -28,7 +28,7 @@ StageCfg all_modes[NSTAGES] {
   { // Stage 1 - grow
     "grow",
     // PWM for lights
-    {0,0,150,150,30},
+    {0,0,120,120,30},
     // hour ON and OFF
     20,4
   },
@@ -39,10 +39,10 @@ StageCfg all_modes[NSTAGES] {
     // hour ON and OFF
     20,6
   },
-  { // Stage 3 - late-grow
+  { // Stage 3 - open door
     "open door",
     // PWM for lights
-    {20,20,255,255,90},
+    {20,20,255,255,15},
     // hour ON and OFF
     0,0
   },
@@ -66,7 +66,7 @@ StageCfg all_modes[NSTAGES] {
 // lights pwm config for state 2 of the light (20 mins bef and after lights on)
 int lights_state_2_pwms[NLIGHTS] = {0,0,0,0,30};
 
-int max_temp_lights = 30;
+int max_temp_lights = 34;
 
 /// Methods
 
@@ -80,11 +80,16 @@ void setPwmLight(int pwmID, int val){
 }
 
 void setStage(int stageVal){
+  int prev_sel_stage = selectedStage;
   selectedStage = stageVal;
-  setMemStageVal(stageVal);
   updateStage(NAN);
   if(selectedStage == NSTAGES-2)// off
     saveLightModes();
+  
+  if (selectedStage == 2)
+    startOpenDoorTimer(prev_sel_stage);
+  else
+    setMemStageVal(stageVal);
 }
 
 void restoreStage(){
@@ -141,6 +146,28 @@ int getHourOff(struct StageCfg stage){
 struct StageCfg getSelectedStage(){
   return all_modes[selectedStage];  
 }
+
+// TIMER stage open door: 
+//   goes back to prev stage after 20mins
+hw_timer_t * timer_open_door = NULL;
+int timer_prev_sel_stage = -1;
+void startOpenDoorTimer(int prev_stage){
+  // (re)start alarm to startAutoFan in 20 mins
+  timerAlarmDisable(timer_open_door);
+  timerRestart(timer_open_door);
+  timerAlarmWrite(timer_open_door, 20*600000, false);
+  timerAlarmEnable(timer_open_door);
+  
+  timer_prev_sel_stage = prev_stage;
+}
+
+void IRAM_ATTR stopOpenDoorTimer(){
+  if(timer_prev_sel_stage !=-1 && selectedStage == 2){
+    selectedStage = timer_prev_sel_stage;
+  }
+  timer_prev_sel_stage = -1;
+}
+
 
 // STAGE - Lights //
 
@@ -278,6 +305,10 @@ void sunRise(struct StageCfg selStageCfg){
 void setupStages(){
   restoreStage();
   restoreLightModes();
+
+  // Setting a timer to use in startAutoFan()
+  timer_open_door = timerBegin(1, 8000, true);
+  timerAttachInterrupt(timer_open_door, &stopOpenDoorTimer, true);
 
 //  // Setting a timer to run updateStage()
 //  // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535

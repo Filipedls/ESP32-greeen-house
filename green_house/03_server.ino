@@ -72,7 +72,12 @@ const char index_html[] PROGMEM = R"rawliteral(
   %FANTEMPOFFSET%
   %WARNS%
   <br>
-  <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
+  <details>
+    <summary>info</summary>
+    <br>
+    %INFO%
+    <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
+  </details>
 </body>
 <script>
 function onslideSliderPWM(element, slider_id) {
@@ -222,6 +227,11 @@ String processor(const String& var){
       text += "Temperature above the allowed max, reseting the max fan speed!<br>";
     text += "</span>";
     return text;
+  } else if(var == "INFO") {
+    String text = "lights off at: "+String(max_temp_lights)+"&deg;C<br>"+
+      "fan speed (min-max): "+String(min_fan_speed)+"-"+String(max_fan_speed)+
+      "<br>no max fan speed temp: "+String(no_max_fan_speed_temp)+"&deg;C<br>";
+    return text;
   }
   return String();
 }
@@ -272,7 +282,7 @@ void setupServer(){
         setDynamicTemp(sliderValueAux);  
       } else if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
         setMainFanPwm(sliderValueAux);
-        stopAutoFan();
+        //stopAutoFan();
         //Serial.println("pwmID FAN stopAutoFan");
       } else {
         setPwmLight(sliderID, sliderValueAux);

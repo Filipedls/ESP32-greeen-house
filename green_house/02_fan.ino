@@ -131,37 +131,37 @@ void setDynamicTemp(int mid_fan_speed_temp_new_val){
 
 // TIMER
 
-hw_timer_t * timer_fan = NULL;
-bool timer_is_ON = false;
-void stopAutoFan(){
-  // (re)start alarm to startAutoFan in 30 mins
-  timerAlarmDisable(timer_fan);
-  timerRestart(timer_fan);
-  timerAlarmWrite(timer_fan, 30*600000, false);
-  timerAlarmEnable(timer_fan);
-  
-  if(!timer_is_ON){
-    //Serial.println("fan timer going ON");
-    timer_is_ON = true;
-  } else {
-    //Serial.println("fan timer going RESTART");
-  }
-}
-
-void IRAM_ATTR startAutoFan(){
-  if(timer_is_ON){
-    //Serial.println("fan timer going OFF");
-    timer_is_ON = false;
-  } else {
-    //Serial.println("fan timer going OFF, again?!");
-  }
-}
+//hw_timer_t * timer_fan = NULL;
+//bool timer_is_ON = false;
+//void stopAutoFan(){
+//  // (re)start alarm to startAutoFan in 30 mins
+//  timerAlarmDisable(timer_fan);
+//  timerRestart(timer_fan);
+//  timerAlarmWrite(timer_fan, 30*600000, false);
+//  timerAlarmEnable(timer_fan);
+//  
+//  if(!timer_is_ON){
+//    //Serial.println("fan timer going ON");
+//    timer_is_ON = true;
+//  } else {
+//    //Serial.println("fan timer going RESTART");
+//  }
+//}
+//
+//void IRAM_ATTR startAutoFan(){
+//  if(timer_is_ON){
+//    //Serial.println("fan timer going OFF");
+//    timer_is_ON = false;
+//  } else {
+//    //Serial.println("fan timer going OFF, again?!");
+//  }
+//}
 
 void setTempConfig(int tempConfigN){
   selTempCfg = tempConfigN;
-  if(timer_is_ON){
-    timer_is_ON = false;
-  }
+//  if(timer_is_ON){
+//    timer_is_ON = false;
+//  }
   setMemFanModeNum(selTempCfg);
   float temperature = readDHTTemperature();
   updateFanSpeed(temperature);
@@ -189,7 +189,7 @@ float kI = 0.03;
 float kD = 0.1;
 float kP = 0.4;
 int dt = 1; // 1 min?
-float kI_decay = 0.03;
+float kI_decay = 0.01;
 
 // aux vars
 bool prev_cycle_was_PID = false;
@@ -217,7 +217,9 @@ int setPIDfanSpeed(float temp, float lightPowerRatio){
   float power_coef = lightPowerRatio*lightPowerAvg + (1-lightPowerRatio)*MAX_PWM_FAN;
 
   // max(err,float(0) - we dont wat the P control to be neg, cuts the Diff part off when the fan is at min speed
-  int speed_val = min_fan_speed + (kP*max(err,float(0)) + kI*err_sum*dt + kD*(err-prev_err)/dt) * power_coef * ((MAX_PWM_FAN-min_fan_speed)/MAX_PWM_FAN);
+  int speed_val = (kP*max(err,float(0)) + kI*err_sum*dt + kD*(err-prev_err)/dt) 
+  // power and min max scalings
+  * power_coef * ((MAX_PWM_FAN-min_fan_speed)/MAX_PWM_FAN) + min_fan_speed;
   // speed cannot be bellow zero and above 255
   speed_val = min(max(speed_val, 0), int(MAX_PWM_FAN));
   prev_err = err;
@@ -258,10 +260,10 @@ int processTempCfg(struct TempCfg temps_cfg, float temperature){
 
 int n_times_temp_nan = 0;
 void updateFanSpeed(float temperature){
-  if(timer_is_ON){
-    //Serial.println("temp timer_is_ON! nothing done");
-    return;
-  }
+//  if(timer_is_ON){
+//    //Serial.println("temp timer_is_ON! nothing done");
+//    return;
+//  }
   
   TempCfg temps_cfg = * all_temp_configs[selTempCfg];
   //Serial.println("temp csel: "+String(selTempCfg) + " N " + String(temps_cfg.tname));
@@ -310,9 +312,9 @@ void updateFanSpeed(float temperature){
 
 void setupFan(){
   restoreFanMode();
-  // Setting a timer to use in startAutoFan()
-  timer_fan = timerBegin(1, 8000, true);
-  timerAttachInterrupt(timer_fan, &startAutoFan, true);
+//  // Setting a timer to use in startAutoFan()
+//  timer_fan = timerBegin(1, 8000, true);
+//  timerAttachInterrupt(timer_fan, &startAutoFan, true);
   
   // makes sure the fans starts
   // the fan can have a speed as low as 40, but can not start with that
