@@ -1,134 +1,143 @@
-#define MAX_TEMPS_SIZE 10
+
+enum FanModeID {
+    LINEAR, PID, AVGLIGHT, DRYING, OFF  
+};
+//enum FanModeID fan_mode = PID;
+
+#define MAX_TEMPS_SIZE 6
 struct TempCfg {
-    char tname[20];
+    char tname[15];
     int tempsSize;
     int temps[MAX_TEMPS_SIZE];
     int fanSpeeds[MAX_TEMPS_SIZE];
     float lightPowerRatio;
+    enum FanModeID fan_mode;
 };
 
-// absolute min fan speed, bellow this the fan will stop
-const int abs_min_fan_speed = 45;
+// bellow a certain speed the fan will stop, so be carfull with this limit
 // setable min_fan_speed
-int min_fan_speed = abs_min_fan_speed;
+int min_fan_speed;
 
 #define MAX_PWM_FAN 255.0
 
-// for noise reason the temp control will keep the fan speed at
-// max_fan_speed until no_max_fan_speed_temp is reached
+// for noise reason the temp control will keep the fan speed at max_fan_speed
 int max_fan_speed = int(MAX_PWM_FAN);
-// above 30C ignores the limit on the fan speed
-int no_max_fan_speed_temp = 30;
 
-bool max_fan_speed_warn = false;
-
-// temp config  for all stages
-TempCfg main_temp_config = { 
-    // FAN
-    //tname
-    "main",
-    // tempsSize
-    4,
-    // temps
-    {20,27 ,30 ,33 },
-    // fanSpeeds
-    {0 ,100,210,255},
-    // lightPowerRatioWeight
-    0.4
-};
+// temp at which lights shutt off, security
+int max_temp_lights; // = 34;
 
 // the temperature for a 50% speed
 // will have a 2C offset from zero to 100%
 // e.g.: for a 26 (3 offset) val means the temp profile will start at 23C (0%)
 //       and end at 29 (100%) 
 
-int mid_fan_speed_temp = 26;
-// offset of 2C
-int temp_offset = 3;
+int main_fan_goal_temp;// = 26;
+// offset of 3C
+int linear_temp_offset = 3;
 
-// initialized by setDynamicTempConfig()
-TempCfg dynamic_temp_config = { 
+int min_fan_goal_temp = 20;
+
+// initialized by setLinearTempConfig()
+TempCfg linear_temp_config = { 
     // FAN
     //tname
-    "dynamic",
+    "Linear",
     // tempsSize
     2,
     // temps
-    {mid_fan_speed_temp-temp_offset, mid_fan_speed_temp+temp_offset},
+    {main_fan_goal_temp-linear_temp_offset, main_fan_goal_temp+linear_temp_offset},
     // fanSpeeds
     {0, 255},
     // lightPowerRatioWeight
-    0.5
+    0.5,
+    LINEAR
 };
 
 // pid defined by having no temp profile and a lightPowerRatioWeight bellow 1
-TempCfg pid_temp_config = {"PID", 0,{},{}, 0.95};
+TempCfg pid_temp_config = {"PID", 0,{},{}, 0.95, PID};
 
 // proportional to the avg of the lights
-TempCfg light_temp_config = {"light", 0,{},{}, 1.0};
+TempCfg light_temp_config = {"Light", 0,{},{}, 1.0, AVGLIGHT};
 
-TempCfg off_temp_config = {"off", 0,{},{},-1.0};
+// Drying mode
+TempCfg drying_temp_config = {"Drying", 0,{},{}, 0.0, DRYING};
+
+TempCfg off_temp_config = {"Off", 0,{},{},-1.0, OFF};
 
 #define NTEMPCONFIGS 5
-TempCfg * all_temp_configs[NTEMPCONFIGS] {&main_temp_config, &dynamic_temp_config, &pid_temp_config, &light_temp_config, &off_temp_config};
+TempCfg * all_temp_configs[NTEMPCONFIGS] {&linear_temp_config, &pid_temp_config, &light_temp_config, &drying_temp_config, &off_temp_config};
 int selTempCfg = 0;
 
 // FAN //
-
 bool isFanModeOFF(){
   return selTempCfg == NTEMPCONFIGS-1;
 }
 
+int main_fan_speed = 0;
 void setMainFanPwm(int val){
-  if(isFanModeOFF()){
-    // when the fan speed is manually set the warn is cleared
-    if(max_fan_speed_warn) max_fan_speed_warn = false;
-    if(val < (MAX_PWM_FAN/2)){
-      min_fan_speed = max(val, abs_min_fan_speed);
-      Serial.println("setMainFanPwm: setting min fan speed to" + String(min_fan_speed) );
-    } else {
-      max_fan_speed = val;
-      Serial.println("setMainFanPwm: setting max fan speed to" + String(max_fan_speed) );
-    }
-  } else
-    // checks the set min
-    val = max(val, min_fan_speed);
-    
-  setPwmVal(NLIGHTS, val);
+  if(val != main_fan_speed){
+    main_fan_speed = val;
+    setPwmVal(NLIGHTS, val);
+  }
 }
+
+int prev_main_fan_speed;
+void manuallySetMainFanPwm(int val){
+  setMemFanManualSpeed(val);
+  prev_main_fan_speed = val;
+  setMainFanPwm(val);
+}
+
+// min and max fan speed are only applied to auto fan speed modes
+int checkMinFanSpeed(int val){
+  return min(max(val, 0), max_fan_speed);
+}
+void setMinFanSpeed(int val){
+  min_fan_speed = checkMinFanSpeed(val);
+  setFanMinSpeed(min_fan_speed);
+  Serial.println("setting min fan speed to" + String(min_fan_speed) );
+}
+
+int checkMaxFanSpeed(int val){
+  return max(min(val, int(MAX_PWM_FAN)), min_fan_speed);
+}
+void setMaxFanSpeed(int val){
+  max_fan_speed = checkMaxFanSpeed(val);
+  setFanMaxSpeed(max_fan_speed);
+  Serial.println("setting max fan speed to" + String(max_fan_speed) );
+}
+
 
 void restoreFanMode(){
-  // initialize EEPROM with predefined size
-  //EEPROM.begin(EEPROM_T_SIZE);
-  int mid_fan_speed_temp_mem = getMemFanModeTemp();
-  if(mid_fan_speed_temp_mem > 33 || mid_fan_speed_temp_mem < 20)
-    mid_fan_speed_temp_mem = mid_fan_speed_temp;
-  propagateDynamicTemp(mid_fan_speed_temp_mem);
+  int main_fan_goal_temp_mem = getMemFanModeTemp();
+  setLinearTempConfig(main_fan_goal_temp_mem);
   // fand mode
-  int selTempCfg_mem = getMemFanModeNum();
-  if(selTempCfg_mem < NTEMPCONFIGS && selTempCfg_mem >= 0)
-    selTempCfg = selTempCfg_mem;
+  selTempCfg = getMemFanModeNum();
 }
 
-void propagateDynamicTemp(int mid_fan_speed_temp_new_val){
-  mid_fan_speed_temp = mid_fan_speed_temp_new_val;
-  dynamic_temp_config.temps[0] = mid_fan_speed_temp-temp_offset;
-  dynamic_temp_config.temps[1] = mid_fan_speed_temp+temp_offset;
+void setLinearTempConfig(int main_fan_goal_temp_new_val){
+  main_fan_goal_temp = main_fan_goal_temp_new_val;
+  linear_temp_config.temps[0] = main_fan_goal_temp-linear_temp_offset;
+  linear_temp_config.temps[1] = main_fan_goal_temp+linear_temp_offset;
 }
 
-void setDynamicTemp(int mid_fan_speed_temp_new_val){
-  propagateDynamicTemp(mid_fan_speed_temp_new_val);
-  if(isFanModeOFF())
-    no_max_fan_speed_temp = mid_fan_speed_temp_new_val;
+void setMainFanGoalTemp(int main_fan_goal_temp_new_val){
+  if(main_fan_goal_temp_new_val <= max_temp_lights && main_fan_goal_temp_new_val >= min_fan_goal_temp){
+    setLinearTempConfig(main_fan_goal_temp_new_val);
+    float temperature = readDHTTemperature();
+    updateFanSpeed(temperature);
+    
+    setMemFanModeTemp(main_fan_goal_temp_new_val);
+  }
+}
 
-  float temperature = readDHTTemperature();
-  updateFanSpeed(temperature);
-  // when the mid_fan_speed_temp is manually set the warn is cleared
-  if(max_fan_speed_warn) max_fan_speed_warn = false;
+
+void setLinearTempOffset(int linear_temp_offset_new_val){
+  linear_temp_offset = linear_temp_offset_new_val;
+  setLinearTempConfig(main_fan_goal_temp);
+  setMemLinearTempOffset(linear_temp_offset_new_val);
   
-  setMemFanModeTemp(mid_fan_speed_temp);
 }
-
 // TIMER
 
 //hw_timer_t * timer_fan = NULL;
@@ -158,13 +167,15 @@ void setDynamicTemp(int mid_fan_speed_temp_new_val){
 //}
 
 void setTempConfig(int tempConfigN){
-  selTempCfg = tempConfigN;
-//  if(timer_is_ON){
-//    timer_is_ON = false;
-//  }
-  setMemFanModeNum(selTempCfg);
-  float temperature = readDHTTemperature();
-  updateFanSpeed(temperature);
+  if(tempConfigN < NTEMPCONFIGS && tempConfigN >= 0){
+    selTempCfg = tempConfigN;
+  //  if(timer_is_ON){
+  //    timer_is_ON = false;
+  //  }
+    setMemFanModeNum(selTempCfg);
+    float temperature = readDHTTemperature();
+    updateFanSpeed(temperature);
+  }
 }
 
 int getTempConfigN(){
@@ -206,12 +217,13 @@ int setPIDfanSpeed(float temp, float lightPowerRatio){
   }
   int lightPowerAvg = getAvgLightPower();
   
-  // mid_fan_speed_temp is the temo goal for the PID
-  err = temp - mid_fan_speed_temp;
+  // main_fan_goal_temp is the temo goal for the PID
+  err = temp - main_fan_goal_temp;
   
   // to remove the lag from the integral part, we clip the err_sum at zero and decay it
   // otherwise takes to long to react
-  err_sum = max(err_sum*(1-kI_decay) + err,float(0.0));
+  // limits the error to make the integral part have a max of 1
+  err_sum = min(max(err_sum*(1-kI_decay) + err,float(0.0)), float(1.0/kI));
 
   // a ratio of 1 mean the PID val is 100% propotional to the avg_light_power, 0 doesnt care about lights
   float power_coef = lightPowerRatio*lightPowerAvg + (1-lightPowerRatio)*MAX_PWM_FAN;
@@ -229,7 +241,7 @@ int setPIDfanSpeed(float temp, float lightPowerRatio){
 
 // AUTO temp humid  control
 // have a max humid and temp, where if  above fan goes up, til back normal
-int processTempCfg(struct TempCfg temps_cfg, float temperature){
+int getLinearTempSpeed(struct TempCfg temps_cfg, float temperature){
   int pwmVal;
   // bellow min temp
   if(temperature < temps_cfg.temps[0]){
@@ -258,66 +270,120 @@ int processTempCfg(struct TempCfg temps_cfg, float temperature){
   return pwmVal;
 }
 
+// Drying Mode control
+float perc_time_on;
+int fan_period_mins;// = 10;
+int prev_state = -1;
+void processDryingMode(){
+
+  int hour, mins;
+  getHourMin(&hour, &mins);
+  
+  int min_rest = mins % fan_period_mins;
+  int trans_mins = fan_period_mins * perc_time_on;
+  
+  if(min_rest < trans_mins && prev_state != 1){
+    // fan is on
+    prev_state = 1;
+    setMainFanPwm(prev_main_fan_speed);
+  } else if(min_rest >= trans_mins && prev_state != 0){
+    // fan is off
+    prev_state = 0;
+    prev_main_fan_speed = main_fan_speed;
+    setMainFanPwm(0);
+  } 
+  //Serial.println("processDryingMode >> min_rest:"+String(min_rest)+" trans_mins: "+String(trans_mins)+" prev_state: "+String(prev_state));
+  
+}
+
+void setFanPeriodMins(int val_mins){
+  if(60%val_mins==0 && val_mins<60){
+    fan_period_mins = val_mins;
+    setMemFanPeriodMins(val_mins);
+  } 
+}
+
+void setPercTimeOn(int val_perc){
+  float val_ratio = min(max(0, val_perc), 100) / 100.0;
+  perc_time_on = val_ratio;
+  Serial.println("setPercTimeOn >> "+String(val_ratio));
+  setMemFanDryPercTimeOn(val_ratio);
+}
+
+
 int n_times_temp_nan = 0;
 void updateFanSpeed(float temperature){
 //  if(timer_is_ON){
 //    //Serial.println("temp timer_is_ON! nothing done");
 //    return;
 //  }
-  
+  int fan_speed;
   TempCfg temps_cfg = * all_temp_configs[selTempCfg];
-  //Serial.println("temp csel: "+String(selTempCfg) + " N " + String(temps_cfg.tname));
-  if(temps_cfg.lightPowerRatio >= 1.0){
-    int default_fan_speed = getAvgLightPower(); 
-    setMainFanPwm(default_fan_speed);
+  //Serial.println("updateFanSpeed >> #"+String(selTempCfg)+" Name: "+String(temps_cfg.tname)+" Mode: "+String(temps_cfg.fan_mode));
+//  if(temps_cfg.fan_mode == LINEAR) {
+//    Serial.println("LINEAR");
+//  } else if(temps_cfg.fan_mode == PID) {
+//    Serial.println("PID");
+//  }
+  if(temps_cfg.fan_mode == AVGLIGHT){
+    fan_speed = getAvgLightPower(); 
+    setMainFanPwm(fan_speed);
     prev_cycle_was_PID = false; 
-  } else if(temps_cfg.tempsSize > 0 || temps_cfg.lightPowerRatio >= 0.0){
+  //} else if(temps_cfg.tempsSize > 0 || temps_cfg.lightPowerRatio >= 0.0){
+  } else if(temps_cfg.fan_mode == PID || temps_cfg.fan_mode == LINEAR){  
     //float temperature = readDHTTemperature();
     if(!isnan(temperature)){
-      int aux_fan_speed; 
       n_times_temp_nan = 0;
-      if(temps_cfg.tempsSize > 0){
-        aux_fan_speed = processTempCfg(temps_cfg, temperature);
+      //if(temps_cfg.tempsSize > 0){
+      if(temps_cfg.fan_mode == LINEAR){
+        fan_speed = getLinearTempSpeed(temps_cfg, temperature);
         prev_cycle_was_PID = false;
       } else {
-        // if temps_cfg.tempsSize == 0 and lightPowerRatio >= 0.0 does PID
-        // when no temp profile does PID 
-        aux_fan_speed = setPIDfanSpeed(temperature, temps_cfg.lightPowerRatio);
+        // does PID 
+        fan_speed = setPIDfanSpeed(temperature, temps_cfg.lightPowerRatio);
       }
-      if(temperature < no_max_fan_speed_temp)
-        aux_fan_speed = min(max_fan_speed,aux_fan_speed);
-      else if (max_fan_speed < MAX_PWM_FAN){
-      // when temo goes above the no_max_fan_speed_temp limit the max_fan_speed is reset to the max
-      // so that the temp control can catch up, once its not restricted anymore
-        max_fan_speed = int(MAX_PWM_FAN);
-        max_fan_speed_warn = true;
-      }
-        
-      setMainFanPwm(aux_fan_speed);
     } else {
       if(n_times_temp_nan > 2){
         // when no temp profile default to the avg light power
-        int default_fan_speed = getAvgLightPower(); 
-        setMainFanPwm(default_fan_speed);
+        fan_speed = getAvgLightPower();
+        prev_cycle_was_PID = false;
       } else {
         // to not overflow the var n_times_temp_nan, only increases til 3
         Serial.println("temp was NAN, will be using AvgLightPower after 3x!");
         n_times_temp_nan++;
+        return;
       }
     }
+    fan_speed = max(min(max_fan_speed,fan_speed), min_fan_speed);
+    setMainFanPwm(fan_speed);
+  } else if(temps_cfg.fan_mode == DRYING){
+    processDryingMode();  
+    prev_cycle_was_PID = false;  
   } else {
     prev_cycle_was_PID = false;  
   }
 }
 
 void setupFan(){
+  linear_temp_offset = getMemLinearTempOffset();
   restoreFanMode();
+  min_fan_speed = getFanMinSpeed();
+  max_fan_speed = getFanMaxSpeed();
+  if (max_fan_speed == 0)
+    max_fan_speed = MAX_PWM_FAN;
+
+  prev_main_fan_speed = getMemFanManualSpeed();
+
+  perc_time_on = getMemFanDryPercTimeOn();
+  fan_period_mins = getMemFanPeriodMins();
+
 //  // Setting a timer to use in startAutoFan()
 //  timer_fan = timerBegin(1, 8000, true);
 //  timerAttachInterrupt(timer_fan, &startAutoFan, true);
   
   // makes sure the fans starts
   // the fan can have a speed as low as 40, but can not start with that
-  setPwmVal(NLIGHTS, 80);
-  delay(1500);
+  setPwmVal(NLIGHTS, 160);
+  delay(700);
+  setMainFanPwm(prev_main_fan_speed);
 }

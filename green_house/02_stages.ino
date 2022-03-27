@@ -1,7 +1,8 @@
 // TODO clean up pre-stage vars
-// TODO sync updateStage() and updateFanSpeed() (runs after)
 
 int selectedStage = 0;
+
+int min_light_val = 10;
 
 // todo change to uint8_t
 struct StageCfg {
@@ -11,6 +12,7 @@ struct StageCfg {
     int hour_on;
     // n hours off
     int n_hours_off;
+    bool dim_lights;
 };
 
 // Config  for all stages
@@ -20,38 +22,43 @@ StageCfg stage_off = {
   // PWM for lights
   {0,0,0,0,0},
   // hour ON and OFF
-  0,24
+  0,24,
+  false
 };
 
 #define NSTAGES 6
 StageCfg all_modes[NSTAGES] {
   { // Stage 1 - grow
-    "grow",
+    "Dim OFF",
     // PWM for lights
     {0,0,120,120,30},
     // hour ON and OFF
-    20,4
+    20,4,
+    false
   },
   { // Stage 2 - flower
-    "flower",
+    "Dim ON",
     // PWM for lights
     {255,255,255,255,255},
     // hour ON and OFF
-    20,6
+    20,6,
+    true
   },
   { // Stage 3 - open door
     "open door",
     // PWM for lights
     {20,20,255,255,15},
     // hour ON and OFF
-    0,0
+    0,0,
+    false
   },
-  { // Stage 4 - sprout
+  { // Stage 4 - photo
     "photo",
     // PWM for lights
     {0,0,255,255,0},
     // hour ON and OFF
-    0,0
+    0,0,
+    false
   },
   // Stage 5 - OFF
   stage_off,
@@ -60,25 +67,32 @@ StageCfg all_modes[NSTAGES] {
     // PWM for lights
     {255,255,255,255,255},
     // hour ON and OFF
-    0,0
+    0,0,
+    false
   }
 };
 // lights pwm config for state 2 of the light (20 mins bef and after lights on)
 int lights_state_2_pwms[NLIGHTS] = {0,0,0,0,30};
 
-int max_temp_lights = 34;
-
 /// Methods
-
+int StateNum = 0;
 void setPwmLight(int pwmID, int val){
   if(pwmID<NLIGHTS){
-    setPwmVal(pwmID, val);
-    // saves the new val in the selected stage
-    all_modes[selectedStage].pwmVals[pwmID] = val;
+    setPwmLightVal(pwmID, val);
+    // when light on, saves the new val in the selected stage
+    if(StateNum==1)
+      all_modes[selectedStage].pwmVals[pwmID] = val;
     Serial.println("Light "+ String(pwmID)+" V" + String(val));
   }
 }
 
+void setPwmLightVal(int pwmID, int val){
+  if(val < min_light_val && val != 0)
+    val = min_light_val;
+  setPwmVal(pwmID, val);
+}
+
+float dim_ratio = 1.0;
 void setStage(int stageVal){
   int prev_sel_stage = selectedStage;
   selectedStage = stageVal;
@@ -90,6 +104,8 @@ void setStage(int stageVal){
     startOpenDoorTimer(prev_sel_stage);
   else
     setMemStageVal(stageVal);
+    if(!all_modes[selectedStage].dim_lights)
+      dim_ratio = 1.0;
 }
 
 void restoreStage(){
@@ -102,7 +118,7 @@ void saveLightModes(){
 }
 
 void restoreLightModes(){
-  getMemLightModes(all_modes);
+  getMemLightModes(all_modes, sizeof(all_modes));
   //Serial.println("restoreLightModes: Light modes restored! :) size is "+String(sizeof(all_modes)));
 }
 
@@ -110,18 +126,23 @@ int getStage(){
   return selectedStage;
 }
 
-void processStageState(struct StageCfg stage, int StageNum){
+void setLightsOffTemp(int temp){
+  max_temp_lights = temp;
+  setLightOffsTempMem(temp);
+}
+
+void processStageState(struct StageCfg stage, int StateNum){
   int * pwmValsToSet;
-  if(StageNum==1){
+  if(StateNum==1){
     pwmValsToSet = stage.pwmVals;
-  } else if(StageNum==2){
+  } else if(StateNum==2){
     pwmValsToSet = lights_state_2_pwms;
   } else {
     pwmValsToSet = stage_off.pwmVals;
   }
   // only sets the lights, fan is independently controled
   for(int i=0; i<NLIGHTS;i++){
-    setPwmVal(i, pwmValsToSet[i]);
+    setPwmLightVal(i, pwmValsToSet[i]);
   }
 }
 
@@ -131,10 +152,12 @@ void processStageState(struct StageCfg stage, int StageNum){
 void setHourOn(int hour_on){
   all_modes[selectedStage].hour_on = hour_on;
   updateStage(NAN);
+  saveLightModes();
 }
 void setNHoursOff(int n_hours_off){
   all_modes[selectedStage].n_hours_off = n_hours_off;
   updateStage(NAN);
+  saveLightModes();
 }
 int getHourOff(struct StageCfg stage){
   int hour_off = stage.hour_on - stage.n_hours_off;
@@ -168,7 +191,40 @@ void IRAM_ATTR stopOpenDoorTimer(){
   timer_prev_sel_stage = -1;
 }
 
+// Temperature based light dimming
+// If the fan can't keep up with the lights, the temperature gets too high
+// So if the temp goes above  'start_temp', we start dimming the lights
 
+// The temp at which we start to dim the lights
+int start_dim_temp;// = 30;
+// the temp tolerance interval
+float temp_tol = 0.5;
+float tdim_kP = 0.03;
+
+void checkTempToDimLights(struct StageCfg stage, float temperature){
+  
+  float temp_err = temperature - start_dim_temp;
+  
+  if(temperature > start_dim_temp && dim_ratio > 0.0){
+    dim_ratio = max(float(0.0), dim_ratio-(tdim_kP*temp_err));
+  } else if(temperature < (start_dim_temp-temp_tol) && dim_ratio < 1.0){
+    dim_ratio = min(float(1.0), dim_ratio-(tdim_kP*(temp_err+temp_tol)) );
+  } else {
+    return;  
+  }
+  //Serial.println("diming lights > dim_ratio " + String(dim_ratio));
+    
+  // only sets the lights, fan is independently controled
+  for(int i=0; i<NLIGHTS;i++){
+    if(stage.pwmVals[i] > 0)
+      setPwmLightVal(i, int(dim_ratio*stage.pwmVals[i]));
+  }
+}
+
+void setStartDimTemp(int new_val){
+  start_dim_temp = new_val;
+  setStartDimTempMem(start_dim_temp);
+}
 // STAGE - Lights //
 
 int prev_isStageON = -1;
@@ -187,12 +243,12 @@ void updateStage(float temperature){
   int hour, mins;
   getHourMin(&hour, &mins);
   //Serial.println("Updating stage > h:"+String(hour)+" m:"+String(mins));
-  int StageNum = 0;
+  StateNum = 0;
   // Determining the state of the stage
   if (selStageCfg.n_hours_off == 0) {
-    StageNum = 1;
+    StateNum = 1;
   } else if (selStageCfg.n_hours_off == 24) {
-    StageNum = 0;
+    StateNum = 0;
   } else {
     // Checks if the selected stage is ON
     int hour_off = getHourOff(selStageCfg);
@@ -200,28 +256,30 @@ void updateStage(float temperature){
     //Serial.println("Updating stage: on "+String(hour_on)+"  off "+String(hour_off));
     if(hour_on <= hour_off){
       if(hour >= hour_on && hour < hour_off)
-        StageNum = 1;
+        StateNum = 1;
     } else {
       if(hour >= hour_on || hour < hour_off)
-        StageNum = 1;
+        StateNum = 1;
     }
     // pre-stage
     if((hour == hour_on && mins < 20) || ((hour == hour_off && mins < 20)))
-      StageNum = 2;
+      StateNum = 2;
   }
   // Precessing the stage's state
-  if(StageNum != prev_isStageON || selectedStage != prev_selectedStage) {
-    if(StageNum != 1 && prev_isStageON == 1 && selectedStage == prev_selectedStage){
-    // when swiching the state off, saves the light vals
-      saveLightModes();
-    }
-    processStageState(selStageCfg, StageNum);
+  if(StateNum != prev_isStageON || selectedStage != prev_selectedStage) {
+//    if(StateNum != 1 && prev_isStageON == 1 && selectedStage == prev_selectedStage){
+//    // when swiching the state off, saves the light vals
+//      saveLightModes();
+//    }
+    processStageState(selStageCfg, StateNum);
     Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
       hour, prev_selectedStage, selectedStage, 
-      prev_isStageON?"ON":"OFF", StageNum?"ON":"OFF"
+      prev_isStageON?"ON":"OFF", StateNum?"ON":"OFF"
     );
-    prev_isStageON = StageNum;
+    prev_isStageON = StateNum;
     prev_selectedStage = selectedStage;
+  } else if (!isnan(temperature) && selStageCfg.dim_lights && StateNum == 1){
+    checkTempToDimLights(selStageCfg, temperature);
   }
 }
 
@@ -240,7 +298,7 @@ void sunRise(struct StageCfg selStageCfg){
   
   for(int i=initRedLightVal; i<maxRedLightVal;i++){
     // setting red light pwm
-    setPwmVal(NLIGHTS-1, i);
+    setPwmLightVal(NLIGHTS-1, i);
     Serial.print(String(i)+" ");
     delay(minAdjustDelayRed);
   }
@@ -267,7 +325,7 @@ void sunRise(struct StageCfg selStageCfg){
 
       int ithLightPwm = initLightVal + ( (i-initLightVal)*(selStageCfg.pwmVals[j] / float(maxLightVal) ) ) ;
       
-      setPwmVal(j, ithLightPwm);
+      setPwmLightVal(j, ithLightPwm);
     }
     Serial.print(String(i)+" ");
     delay(minAdjustDelay);
@@ -305,6 +363,9 @@ void sunRise(struct StageCfg selStageCfg){
 void setupStages(){
   restoreStage();
   restoreLightModes();
+
+  max_temp_lights = getLightOffsTempMem();
+  start_dim_temp = getStartDimTempMem();
 
   // Setting a timer to use in startAutoFan()
   timer_open_door = timerBegin(1, 8000, true);

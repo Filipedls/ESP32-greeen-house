@@ -1,5 +1,5 @@
 #define ELEMENTS(x)   (sizeof(x) / sizeof(x[0]))
-
+//jj
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
@@ -14,8 +14,8 @@ void setup(){
   setupStages(); // needs setupTime; runs setupEEPROM (make to run any read after)
   setupFan(); 
   setupServer(); // needs setupTime, setupStages
-  // wait 5s for the temp sensor
-  delay(5000);
+  // wait 3s for the temp sensor
+  delay(3000);
 }
 
 unsigned long previousMillis = 0;

@@ -18,6 +18,12 @@ int getSliderID = 0;
 
 const char* PARAM_INPUT_CB_STATE = "state";
 
+// HTML form Config
+const char* PARAM_INPUT_CFGSEL = "cfgsel";
+const char* PARAM_INPUT_CFGVAL = "cfgval";
+
+String server_started_at;
+
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
@@ -34,7 +40,7 @@ const char index_html[] PROGMEM = R"rawliteral(
      text-align: center;
      background-color: lightgray;
     }
-    input { background-color: lightgray; width: min(50vw, 220px); }
+    input[type=range] { background-color: lightgray; width: min(50vw, 220px); }
     h2 { font-size: 2.0rem; }
     p { font-size: 1.5rem; }
     .units { font-size: 1.2rem; }
@@ -73,9 +79,29 @@ const char index_html[] PROGMEM = R"rawliteral(
   %WARNS%
   <br>
   <details>
-    <summary>info</summary>
+    <summary>Info&amp;Config</summary>
     <br>
     %INFO%
+    <form action="/setcfg" name="cfgform" target="formtarget">
+      <select id="cfgsel" name="cfgsel">
+        <option value="minfanspeed">Min Fan Speed</option>
+        <option value="maxfanspeed">Max Fan Speed</option>
+        <option value="lintemposet">Linear Temp Offset</option>
+        <option value="startdimtemp">Start Dim Temp</option>
+        <option value="lightofftemp">Lights Off Temp</option>
+        <option value="perctimeon">Drying Perc Time ON</option>
+        <option value="fanpermins">Drying Period mins</option>
+        <option value="wifissid">WiFi SSID</option>
+        <option value="wifipass">WiFi Pass</option>
+        <option value="wifiip">WiFi IP</option>
+        <option value="wifigw">WiFi Gateway</option>
+        <option value="cmd">cmd</option>
+      </select>
+      <input type="text" name="cfgval">
+      <input type="reset" value="Set" onclick="document.forms['cfgform'].submit();">
+    </form>
+    <iframe name="formtarget" id="formtarget" style="height: 21pt;"></iframe>
+    <br>
     <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
   </details>
 </body>
@@ -84,16 +110,17 @@ function onslideSliderPWM(element, slider_id) {
   var sliderValue = element.value;
   var textSlider = document.getElementById("textSliderValueLight"+slider_id);
   textSlider.innerHTML = sliderValue;
-  textSlider.style.color = "red";
 }
 
 function updateSliderPWM(element, slider_id) {
   var sliderValue = element.value;
-  document.getElementById("textSliderValueLight"+slider_id).innerHTML = sliderValue;
+  var textSlider = document.getElementById("textSliderValueLight"+slider_id);
+  textSlider.innerHTML = sliderValue;
+  textSlider.style.color = "red";
   var xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
-      document.getElementById("textSliderValueLight"+slider_id).style.color = null;
+      textSlider.style.color = null;
     }
   };
   xhr.open("GET", "/slider?value="+sliderValue+"&id="+slider_id, true);
@@ -168,15 +195,17 @@ String processor(const String& var){
     return String(readDHTHumidity());
   } else if (var == "SLIDERSPLACEHOLDER"){
     String buttons ="";
+    String slide_step = String(15);
     pwmValsInfo sliderInfo = getPwmVals();
     for(int i=0; i < sliderInfo.lenght; i++){
       String sliderVal = String(sliderInfo.vals[i]);
       if(i == sliderInfo.lenght-NFANS){
         buttons+="<h4>Fan</h4>";
+        slide_step=String(5);
       }
       buttons+= "<h5>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
       "')\" oninput=\"onslideSliderPWM(this, '" + String(i) + "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
-      "\" step=\"15\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h5>";
+      "\" step=\""+slide_step+"\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h5>";
     }
     return buttons;
   } else if (var == "DATETIME"){
@@ -213,24 +242,27 @@ String processor(const String& var){
     return text;
   } else if(var == "FANTEMPOFFSET"){
     String temp_offset_id = String(temp_offset_slide_id);
-    String mid_fan_speed_temp_str = String(mid_fan_speed_temp);
+    String main_fan_goal_temp_str = String(main_fan_goal_temp);
     String text = "<h5>T: <input type=\"range\" onchange=\"updateSliderPWM(this, '" + temp_offset_id +
-      "')\" oninput=\"onslideSliderPWM(this, '" + temp_offset_id + "')\" id=\"pwmSlider" + temp_offset_id +"\" min=\"20\" max=\"33\" value=\""+ mid_fan_speed_temp_str + 
-      "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ temp_offset_id +"\">"+mid_fan_speed_temp_str+"</span>&deg;C</h5>";
+      "')\" oninput=\"onslideSliderPWM(this, '" + temp_offset_id + "')\" id=\"pwmSlider" + temp_offset_id +"\" min=\""+String(min_fan_goal_temp)+"\" max=\""+String(max_temp_lights)+"\" value=\""+ main_fan_goal_temp_str + 
+      "\" step=\"1\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ temp_offset_id +"\">"+main_fan_goal_temp_str+"</span>&deg;C</h5>";
      // hours off
     return text;
   } else if(var == "WARNS") {
     String text = "<span style=\"color:red\">";
     if(n_times_temp_nan > 2)
       text += "temp is nan 3x!<br>";
-    if(max_fan_speed_warn)
-      text += "Temperature above the allowed max, reseting the max fan speed!<br>";
     text += "</span>";
     return text;
   } else if(var == "INFO") {
-    String text = "lights off at: "+String(max_temp_lights)+"&deg;C<br>"+
+    String text = "Lights Off at: "+String(max_temp_lights)+"&deg;C<br>"+
       "fan speed (min-max): "+String(min_fan_speed)+"-"+String(max_fan_speed)+
-      "<br>no max fan speed temp: "+String(no_max_fan_speed_temp)+"&deg;C<br>";
+      "<br>Start Dim: "+String(start_dim_temp)+"&deg;C"+" | ratio: "+String(dim_ratio)+
+      "<br>Linear Temp Offset: "+String(linear_temp_offset)+"&deg;"+
+      "<br>Drying Mode: P "+String(fan_period_mins)+" mins | "+String(perc_time_on*100)+"&percnt; ON"+
+      "<br>WiFi: "+ssid+" | "+password+
+      "<br>started at: "+server_started_at+
+      "<br>";
     return text;
   }
   return String();
@@ -279,9 +311,9 @@ void setupServer(){
       } else if(sliderID == hours_off_slide_id){
         setNHoursOff(sliderValueAux);
       } else if (sliderID == temp_offset_slide_id) {
-        setDynamicTemp(sliderValueAux);  
+        setMainFanGoalTemp(sliderValueAux);  
       } else if(sliderID==NLIGHTS){//  if main fan, staps AutoFAn control
-        setMainFanPwm(sliderValueAux);
+        manuallySetMainFanPwm(sliderValueAux);
         //stopAutoFan();
         //Serial.println("pwmID FAN stopAutoFan");
       } else {
@@ -321,6 +353,85 @@ void setupServer(){
     }
     request->send(200, "text/plain", "OK");
   });
+  // SET CONFIG Send a GET request to <ESP_IP>/setcfg?cfgsel=<>&cfgval=<> 
+  server.on("/setcfg", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    String inputCfgSel, inputCfgVal;
+    String msg = "OK";
+    if (request->hasParam(PARAM_INPUT_CFGSEL) && request->hasParam(PARAM_INPUT_CFGVAL)) {
+      inputCfgSel = request->getParam(PARAM_INPUT_CFGSEL)->value();
+      inputCfgVal = request->getParam(PARAM_INPUT_CFGVAL)->value();
+      bool is_int = inputCfgVal.toInt() != 0;
+      int inputCfgValInt = inputCfgVal.toInt();
+      if(inputCfgSel == "wifissid") {
+        setWiFiSSID(inputCfgVal);
+        msg = "setcfg > wifissid :" + inputCfgVal;
+      } else if(inputCfgSel == "wifipass"){
+        setWiFiPass(inputCfgVal);
+        msg = "setcfg > wifipass :" + inputCfgVal;
+      } else if (inputCfgSel == "minfanspeed"){
+        if(is_int){
+          setMinFanSpeed(inputCfgValInt);
+          msg = "minfanspeed: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if (inputCfgSel == "maxfanspeed"){
+        if(is_int){
+          setMaxFanSpeed(inputCfgValInt);
+          msg = "maxfanspeed: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if (inputCfgSel == "startdimtemp"){
+        if(is_int){
+          setStartDimTemp(inputCfgValInt);
+          msg = "startdimtemp: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if (inputCfgSel == "lightofftemp"){
+        if(is_int){
+          setLightsOffTemp(inputCfgValInt);
+          msg = "lightofftemp: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "wifiip"){
+        setWiFiIP(inputCfgVal);
+        msg = "setcfg > wifiIP :" + inputCfgVal;
+      } else if(inputCfgSel == "wifigw"){
+        setWiFigateway(inputCfgVal);
+        msg = "setcfg > wifigateway: " + inputCfgVal;
+      } else if(inputCfgSel == "perctimeon"){
+        if(is_int){
+          setPercTimeOn(inputCfgValInt);
+          msg = "perctimeon: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "lintemposet"){
+        if(is_int){
+          setLinearTempOffset(inputCfgValInt);
+          msg = "lintemposet: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "fanpermins"){
+        if(is_int){
+          setFanPeriodMins(inputCfgValInt);
+          msg = "fan_period_mins: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "cmd"){
+        if(inputCfgVal == "resetprefs"){
+          clearPrefs();
+          msg = "cmd resetprefs > done :)";
+        } else
+          msg = "cmd > unknown cmd! :( " + inputCfgVal;
+      } else
+        msg = "setcfg > unknown config: " + inputCfgVal;
+    }
+    else {
+      Serial.println("setcfg: not enought variables!");
+    }
+    Serial.println(msg);
+    request->send(200, "text/plain", msg.c_str());
+  });
   // Start server
   server.begin();
+  server_started_at = getDateTime();
 }

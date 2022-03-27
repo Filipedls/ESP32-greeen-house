@@ -10,9 +10,9 @@
 //#define DHTTYPE    DHT21     // DHT 21 (AM2301)
 
 DHT dht(DHTPIN, DHTTYPE);
-
+//int main_fan_goal_temp;
 float readDHTTemperature() {
-  //return mid_fan_speed_temp;//26.5;
+  //return main_fan_goal_temp;//26.5;
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float t;
   for(int i = 0; i < NTRIES; i++){
@@ -45,9 +45,9 @@ float readDHTHumidity() {
 
 
 void readDHTTemperatureHumidity(float * rt, float * rh) {
-  //*rt = readDHTTemperature();
-  //*rh = readDHTHumidity();
-  //return;
+  *rt = readDHTTemperature();
+  *rh = readDHTHumidity();
+  return;
   // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
   float t = NAN;
   float h = NAN;

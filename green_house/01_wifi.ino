@@ -1,31 +1,37 @@
 // Import required libraries
 #include <WiFi.h>
-//#include <ETH.h>
 
-//void connectToWiFi(const char * ssid, const char * pwd);
-//void WiFiEvent(WiFiEvent_t event) ;
 void WiFiStationDisconnected( WiFiEvent_t event, WiFiEventInfo_t info );
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info);
 
 // Replace with your network credentials
-const char* ssid = "The Internet";
-const char* password = "ledigsilva1";
+String ssid;
+String password;
 
 // Set your Static IP address
-IPAddress local_IP(192, 168, 0, 232);
-// Set your Gateway IP address
-IPAddress gateway(192, 168, 0, 1);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress dns(1, 1, 1, 1);
+String IP_addr, gateway_str;
+
 
 void connectWiFi(){
+  IPAddress local_IP;
+  IPAddress gateway;
+  
+  if (local_IP.fromString(IP_addr) & gateway.fromString(gateway_str)) { // try to parse into the IPAddress
+    //Serial.println(local_IP); // print the parsed IPAddress 
+  } else {
+    Serial.println("unparsable IP/gateway");
+  }
+
+  // Set your Gateway IP address
+  IPAddress subnet(255, 255, 255, 0);
+  IPAddress dns(1, 1, 1, 1);
   // Connect to Wi-Fi
-  Serial.print("starting..."); 
+  Serial.print("starting... SSID: " + ssid + "  P: " + password); 
 
   if(!WiFi.config(local_IP, gateway, subnet, dns)) {
-    Serial.println("STA Failed to configure");
+    Serial.println("/!\ STA Failed to configure!");
   }
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid.c_str(), password.c_str());
 }
 
 //
@@ -61,11 +67,15 @@ void WiFiStationDisconnected( WiFiEvent_t event, WiFiEventInfo_t info ){
 }
 
 
-
 void setupWiFi(){
   // Connect to Wi-Fi
   Serial.print("WiFi setup... ");
-  
+
+  ssid = getWiFiSSID(); 
+  password = getWiFiPass();
+  IP_addr = getWiFiIP();
+  gateway_str = getWiFigateway();
+
   // delete old config
   //WiFi.disconnect(true);
 
@@ -78,7 +88,7 @@ void setupWiFi(){
   connectWiFi();
   while (WiFi.status() != WL_CONNECTED){
     Serial.print(".");
-    delay(1000);
+    delay(800);
   }
-  delay(1500);
+  delay(500);
 }
