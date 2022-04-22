@@ -1,10 +1,15 @@
 // TODO clean up pre-stage vars
+// - state 2 (red mode) vars should be part of light stage - BUG: photo mode at 00:01 is red!
 
 int selectedStage = 0;
 
 int min_light_val = 10;
 
+// TODO move to pwm utils
+#define MAX_PWM_LIGHTS 255
+
 // todo change to uint8_t
+// todo add secondary light cycles (red, uv, etc)
 struct StageCfg {
     char sname[20]; 
     int pwmVals[NLIGHTS];
@@ -72,7 +77,12 @@ StageCfg all_modes[NSTAGES] {
   }
 };
 // lights pwm config for state 2 of the light (20 mins bef and after lights on)
-int lights_state_2_pwms[NLIGHTS] = {0,0,0,0,30};
+int state_s2_len_mins;// = 15;
+int lights_s2_pwms[NLIGHTS] = {0};
+
+
+// The temp at which we start to dim the lights
+int start_dim_temp;// = 30;
 
 /// Methods
 int StateNum = 0;
@@ -82,7 +92,7 @@ void setPwmLight(int pwmID, int val){
     // when light on, saves the new val in the selected stage
     if(StateNum==1)
       all_modes[selectedStage].pwmVals[pwmID] = val;
-    Serial.println("Light "+ String(pwmID)+" V" + String(val));
+    //Serial.println("Light "+ String(pwmID)+" V" + String(val));
   }
 }
 
@@ -108,18 +118,22 @@ void setStage(int stageVal){
       dim_ratio = 1.0;
 }
 
-void restoreStage(){
+void restoreLightVars(){
   selectedStage = getMemStageVal();
+  
+  getMemLightModes(all_modes, sizeof(all_modes));
+  //Serial.println("restoreLightModes: Light modes restored! :) size is "+String(sizeof(all_modes)));
+
+  max_temp_lights = getLightOffsTempMem();
+  start_dim_temp = getStartDimTempMem();
+
+  state_s2_len_mins = getMemState2LenMins();
+  lights_s2_pwms[NLIGHTS-1] = getMemState2RedVal();
 }
 
 void saveLightModes(){
   setMemLightModes(all_modes, sizeof(all_modes));
   Serial.println("Light modes saved! :)");
-}
-
-void restoreLightModes(){
-  getMemLightModes(all_modes, sizeof(all_modes));
-  //Serial.println("restoreLightModes: Light modes restored! :) size is "+String(sizeof(all_modes)));
 }
 
 int getStage(){
@@ -131,12 +145,26 @@ void setLightsOffTemp(int temp){
   setLightOffsTempMem(temp);
 }
 
+void setState2LenMins(int len_mins){
+  if(len_mins >= 0 && len_mins <= 60){
+    state_s2_len_mins = len_mins;
+    setMemState2LenMins(len_mins);
+  }
+}
+
+void setState2RedVal(int red_val){
+  if(red_val >= 0 && red_val <= MAX_PWM_LIGHTS){
+    lights_s2_pwms[NLIGHTS-1] = red_val;
+    setMemState2RedVal(red_val);
+  }
+}
+
 void processStageState(struct StageCfg stage, int StateNum){
   int * pwmValsToSet;
   if(StateNum==1){
     pwmValsToSet = stage.pwmVals;
   } else if(StateNum==2){
-    pwmValsToSet = lights_state_2_pwms;
+    pwmValsToSet = lights_s2_pwms;
   } else {
     pwmValsToSet = stage_off.pwmVals;
   }
@@ -195,8 +223,6 @@ void IRAM_ATTR stopOpenDoorTimer(){
 // If the fan can't keep up with the lights, the temperature gets too high
 // So if the temp goes above  'start_temp', we start dimming the lights
 
-// The temp at which we start to dim the lights
-int start_dim_temp;// = 30;
 // the temp tolerance interval
 float temp_tol = 0.5;
 float tdim_kP = 0.03;
@@ -227,7 +253,7 @@ void setStartDimTemp(int new_val){
 }
 // STAGE - Lights //
 
-int prev_isStageON = -1;
+int prev_StateNum = -1;
 int prev_selectedStage = -1;
 void updateStage(float temperature){
   StageCfg selStageCfg = all_modes[selectedStage];
@@ -235,7 +261,7 @@ void updateStage(float temperature){
   if(!isnan(temperature) && temperature > max_temp_lights){
     // turns off the lights by forcing the state to 0
     processStageState(selStageCfg, 0);
-    prev_isStageON = 0;
+    prev_StateNum = 0;
     Serial.println("updateStage > TEMPS ABOVE " + String(max_temp_lights) +" (" +String(temperature) + ") LIGHTS OFF!");
     return; 
   }
@@ -261,22 +287,31 @@ void updateStage(float temperature){
       if(hour >= hour_on || hour < hour_off)
         StateNum = 1;
     }
-    // pre-stage
-    if((hour == hour_on && mins < 20) || ((hour == hour_off && mins < 20)))
+    // pre-state
+    if((hour == hour_on && mins < state_s2_len_mins) || ((hour == hour_off && mins < state_s2_len_mins)))
       StateNum = 2;
   }
   // Precessing the stage's state
-  if(StateNum != prev_isStageON || selectedStage != prev_selectedStage) {
-//    if(StateNum != 1 && prev_isStageON == 1 && selectedStage == prev_selectedStage){
+  if(StateNum != prev_StateNum || selectedStage != prev_selectedStage) {
+//    if(StateNum != 1 && prev_StateNum == 1 && selectedStage == prev_selectedStage){
 //    // when swiching the state off, saves the light vals
-//      saveLightModes();
+//      //saveLightModes();
+//      for(int i=0; i<NLIGHTS;i++){
+//        if(stage.pwmVals[i] != 0)
+//          saveLightModes();
+//          break;
+//      }
 //    }
+    // when turning on resets the dim_ratio
+    if(selStageCfg.dim_lights && StateNum == 1){
+      dim_ratio = 1.0;
+    }
     processStageState(selStageCfg, StateNum);
     Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
       hour, prev_selectedStage, selectedStage, 
-      prev_isStageON?"ON":"OFF", StateNum?"ON":"OFF"
+      prev_StateNum?"ON":"OFF", StateNum?"ON":"OFF"
     );
-    prev_isStageON = StateNum;
+    prev_StateNum = StateNum;
     prev_selectedStage = selectedStage;
   } else if (!isnan(temperature) && selStageCfg.dim_lights && StateNum == 1){
     checkTempToDimLights(selStageCfg, temperature);
@@ -361,11 +396,7 @@ void sunRise(struct StageCfg selStageCfg){
 //}
 
 void setupStages(){
-  restoreStage();
-  restoreLightModes();
-
-  max_temp_lights = getLightOffsTempMem();
-  start_dim_temp = getStartDimTempMem();
+  restoreLightVars();
 
   // Setting a timer to use in startAutoFan()
   timer_open_door = timerBegin(1, 8000, true);

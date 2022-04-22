@@ -42,33 +42,37 @@ const char index_html[] PROGMEM = R"rawliteral(
     }
     input[type=range] { background-color: lightgray; width: min(50vw, 220px); }
     h2 { font-size: 2.0rem; }
-    p { font-size: 1.5rem; }
+    h4 {margin-block: 1.0em;}
+    h5 {margin-block: 1.3em;}
+    p { font-size: 1.4rem; }
     .units { font-size: 1.2rem; }
     .dht-labels{
       font-size: 1.3rem;
       vertical-align:middle;
       padding-bottom: 15px;
     }
-    .switch {position: relative; display: inline-block; width: 60px; height: 34px} 
+    .switch {position: relative; display: inline-block; width: 40px; height: 20px} 
     .switch input {display: none}
-    .slider {position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 34px}
-    .slider:before {position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: #fff; -webkit-transition: .4s; transition: .4s; border-radius: 68px}
+    .slider {position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #888; border-radius: 34px}
+    .slider:before {position: absolute; content: ""; height: 14px; width: 14px; left: 4px; bottom: 3px; background-color: #fff; -webkit-transition: .4s; transition: .4s; border-radius: 68px}
     input:checked+.slider {background-color: #2196F3}
-    input:checked+.slider:before {-webkit-transform: translateX(26px); -ms-transform: translateX(26px); transform: translateX(26px)}
+    input:checked+.slider:before {-webkit-transform: translateX(18px); -ms-transform: translateX(18px); transform: translateX(18px)}
   </style>
 </head>
 <body>
   <h3>Greenkea</h3>
   <p>
     <i class="fas fa-thermometer-half" style="color:#059e8a;"></i> 
-    <span id="temperature">%TEMPERATURE%</span>
-    <sup class="units">&deg;C</sup> 
+    <span id="temperature">%TEMPERATURE%</span><sup class="units">&deg;C</sup> 
     <i class="fas fa-tint" style="color:#00add6;"></i> 
-    <span id="humidity">%HUMIDITY%</span>
-    <sup class="units">&percnt;</sup>
+    <span id="humidity">%HUMIDITY%</span><sup class="units">&percnt;</sup>
     <button type="button" onclick="updateSensorsSliders(this)">R</button>
   </p>
-  <h6>%DATETIME%</h6>
+  <h6 style="margin-block:1.33em;">%DATETIME%</h6>
+  <label class="switch">
+  <input type="checkbox" onclick="checklock(this)" id="lockcheckbox">
+  <span class="slider"></span>
+  </label>
   <h4>Lights</h4>
   %SLIDERSPLACEHOLDER%
   <h4>Modes</h4>
@@ -89,7 +93,9 @@ const char index_html[] PROGMEM = R"rawliteral(
         <option value="lintemposet">Linear Temp Offset</option>
         <option value="startdimtemp">Start Dim Temp</option>
         <option value="lightofftemp">Lights Off Temp</option>
-        <option value="perctimeon">Drying Perc Time ON</option>
+        <option value="lightS2lmins">Lights S2 Len mins</option>
+        <option value="lightS2redv">Lights S2 Red PWM</option>
+        <option value="timeonmins">Drying Time ON Mins</option>
         <option value="fanpermins">Drying Period mins</option>
         <option value="wifissid">WiFi SSID</option>
         <option value="wifipass">WiFi Pass</option>
@@ -161,25 +167,46 @@ function updateSensorsSliders(elem) {
   if(elem != undefined){elem.style.backgroundColor = "red";}
 
 }
-//setInterval(updateSensorsSliders, 60000 ) ;
-
 function buttonRestart(elem) {
-  if (confirm("Are you sure?")) {
+  if (confirm("/!\ Gonna Reboot!!! :O")) {
     elem.style.backgroundColor = "red";
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
       if (this.readyState == 4 && this.status == 200) {
         console.log("restarted");
         elem.style.backgroundColor = "green";
-        setInterval(function ( ) {
-          elem.style.backgroundColor = null;
-        }, 1000);                                        
+        var xhral = new XMLHttpRequest();
+        xhral.onreadystatechange = function() {
+          if (this.readyState == 4 && this.status == 200) {
+            elem.style.backgroundColor = null;
+            clearInterval(tmr);
+          }
+        };
+        var tmr = setInterval(function ( ) {
+          xhral.open("GET", "/alive", true);
+          xhral.send();
+        }, 1000);
       }
     };
     xhr.open("GET", "/restartesp", true);
     xhr.send();
   }
 }
+function checklock(elem) {
+  //var inputs = document.getElementsByTagName("input");
+  var inputs = Array.from(document.getElementsByTagName('input'))
+            .concat(Array.from(document.getElementsByTagName('select')));
+  var next_state = true;
+  if(elem.checked){
+    next_state = false;
+  }
+  for (var i = 0; i < inputs.length; i++) {
+    if (inputs[i].id !== 'lockcheckbox') {
+      inputs[i].disabled = next_state;
+    }
+  }
+}
+checklock(document.getElementById("lockcheckbox"));
 console.log("done setuping");
 </script>
 </html>
@@ -258,10 +285,11 @@ String processor(const String& var){
     String text = "Lights Off at: "+String(max_temp_lights)+"&deg;C<br>"+
       "fan speed (min-max): "+String(min_fan_speed)+"-"+String(max_fan_speed)+
       "<br>Start Dim: "+String(start_dim_temp)+"&deg;C"+" | ratio: "+String(dim_ratio)+
+      "<br>Light S2: "+String(lights_s2_pwms[NLIGHTS-1])+" | "+String(state_s2_len_mins)+" mins"+
       "<br>Linear Temp Offset: "+String(linear_temp_offset)+"&deg;"+
-      "<br>Drying Mode: P "+String(fan_period_mins)+" mins | "+String(perc_time_on*100)+"&percnt; ON"+
+      "<br>Drying: P "+String(fan_period_mins)+" mins | "+String(time_on_mins)+" mins ON"+
       "<br>WiFi: "+ssid+" | "+password+
-      "<br>started at: "+server_started_at+
+      "<br>"+server_started_at+
       "<br>";
     return text;
   }
@@ -278,7 +306,11 @@ void setupServer(){
     delay(1000);
     ESP.restart();
   });
-
+  // Route for root / web page
+  server.on("/alive", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(200, "text/plain", "OK");
+  });
+  
   // Send a the value of the sensors and light /getsenslivals
   server.on("/getsenslivals", HTTP_GET, [] (AsyncWebServerRequest *request) {
     float t = NAN;
@@ -398,9 +430,9 @@ void setupServer(){
       } else if(inputCfgSel == "wifigw"){
         setWiFigateway(inputCfgVal);
         msg = "setcfg > wifigateway: " + inputCfgVal;
-      } else if(inputCfgSel == "perctimeon"){
+      } else if(inputCfgSel == "timeonmins"){
         if(is_int){
-          setPercTimeOn(inputCfgValInt);
+          setTimeOnMins(inputCfgValInt);
           msg = "perctimeon: "+String(inputCfgValInt);
         } else
           msg = "Invalid Input! :(";
@@ -414,6 +446,18 @@ void setupServer(){
         if(is_int){
           setFanPeriodMins(inputCfgValInt);
           msg = "fan_period_mins: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "lightS2lmins"){
+        if(is_int){
+          setState2LenMins(inputCfgValInt);
+          msg = "lightState2_len_mins: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "lightS2redv"){
+        if(is_int){
+          setState2RedVal(inputCfgValInt);
+          msg = "lightState2_red_val: "+String(inputCfgValInt);
         } else
           msg = "Invalid Input! :(";
       } else if(inputCfgSel == "cmd"){

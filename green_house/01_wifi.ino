@@ -19,7 +19,7 @@ void connectWiFi(){
   if (local_IP.fromString(IP_addr) & gateway.fromString(gateway_str)) { // try to parse into the IPAddress
     //Serial.println(local_IP); // print the parsed IPAddress 
   } else {
-    Serial.println("unparsable IP/gateway");
+    Serial.println("Unparsable IP/gateway! IP: "+IP_addr+" Gateway: "+gateway);
   }
 
   // Set your Gateway IP address
@@ -65,6 +65,14 @@ void WiFiStationDisconnected( WiFiEvent_t event, WiFiEventInfo_t info ){
 
   // WiFi.begin(ssid, password); // without disconnect(true)
 }
+
+// signal strenght
+// WiFi.RSSI();
+
+//WiFiClient getWiFiClient(){
+//  WiFiClient client;
+//  return client;
+//}
 
 
 void setupWiFi(){

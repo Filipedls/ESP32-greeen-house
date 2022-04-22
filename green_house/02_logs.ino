@@ -113,12 +113,155 @@ void logToGS(String params[], float vals[], size_t nElems) {
   Serial.println(" done");
 }
 
-void logTempHumidToGS() {
-  float temperature = readDHTTemperature();
-  float humidity = readDHTHumidity();
 
+float sum_temp = 0.0;
+float sum_humid = 0.0;
+int avg_i = 0;
+void updateTempHumidAvg(float temp, float humid) {
+  sum_temp += temp;
+  sum_humid += humid;
+  avg_i++;
+  Serial.println("Updated temp/humid avg - "+String(sum_temp)+" / "+String(sum_humid)+"  "+String(avg_i));
+}
+
+void getResetTemperatureHumidityAvg(float * rt, float * rh) {
+  *rt = sum_temp/avg_i;
+  *rh = sum_humid/avg_i;
+  avg_i = 0;
+  sum_temp = 0.0;
+  sum_humid = 0.0;
+}
+
+void logTempHumidToGS(bool get_avg) {
+  
+  float temperature = NAN;
+  float humidity = NAN;
+  if(get_avg){
+    getResetTemperatureHumidityAvg(&temperature, &humidity);
+  } else {
+    readDHTTemperatureHumidity(&temperature, &humidity);
+  }
+  
   String names[2]  =  {"temp", "humid"};
   float vals[2] = {temperature, humidity};
 
   logToGS(names, vals, 2);
+}
+
+///// SQL
+//
+//#include <MySQL_Connection.h>
+//#include <MySQL_Cursor.h>
+////#include <WiFi.h>
+////
+////const char* ssid = "your wifi name";
+////const char* password = "your wifi password";
+//
+//char userSQL[] = "root";//"root"; // MySQL user login username
+//char passwordSQL[] = ""; // MySQL user login password
+//
+//
+//// CREATE TABLE `ghouse`.`sensorvals` ( `datetime` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP , `temp` FLOAT NOT NULL , `humd` FLOAT NOT NULL , `fanspeed` SMALLINT NOT NULL );
+//
+//// INSERT INTO `id17187452_esp32ghs`.`sensorvals` (`datetime`, `temp`, `humd`, `fanspeed`) VALUES (current_timestamp(), '25.6', '84.3', '125');
+//
+//// INSERT INTO `ghouse`.`sensorvals` (`datetime`, `temp`, `humd`, `fanspeed`) VALUES ('2013-08-05 18:19:03', '25.6', '84.3', '125');
+//
+//char INSERT_SQL[] = "INSERT INTO `ghouse`.`sensorvals` (`datetime`, `temp`, `humd`, `fanspeed`) VALUES (current_timestamp(), '25.6', '84.3', '125');";
+//
+//IPAddress sql_server_addr(34,65,16,41);// your MySQL ip like (8, 8, 8, 8); // IP of the MySQL server here
+//
+//
+////WiFiServer  server(80);
+////void setup() {
+////  //Código de configuração aqui
+////  Serial.begin(115200);
+////
+////  connectToNetwork();
+////  mySqlLoop();
+////}
+////
+////void loop() {
+////}
+////void connectToNetwork() {
+////  WiFi.begin(ssid, password);
+//// 
+////  while (WiFi.status() != WL_CONNECTED) {
+////    delay(1000);
+////    Serial.println("Establishing connection to WiFi..");
+////  }
+//// 
+////  Serial.println("Connected to network");
+//// 
+////}
+//void mySqlLoop(){
+//  //WiFiClient client = getWiFiClient();
+//  WiFiClient client;
+//  MySQL_Connection conn((Client *)&client);
+//  if (conn.connect(sql_server_addr, 3306, userSQL, passwordSQL)) {
+//    Serial.println("Database connected.");
+//  }
+//  else{
+//    Serial.println("DB Connection failed!");
+//    //return;
+//  }
+//  // Initiate the query class instance
+//  MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
+//  // Execute the query
+//  cur_mem->execute(INSERT_SQL);
+//  // Note: since there are no results, we do not need to read any data
+//  // Deleting the cursor also frees up memory used
+//  delete cur_mem;
+//  Serial.println("closing connection\n");
+//  //client.stop();
+//}
+
+// POST PHP
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+const char* serverName = "http://esp32gh.000webhostapp.com/post-esp-data.php";
+
+String apiKeyValue = "Z2E58eFfzfBb";
+
+void postdataphp() {
+  WiFiClient wifi_client;
+  HTTPClient http;
+
+  wifi_client.setTimeout(20000);
+  
+  // Your Domain name with URL path or IP address with path
+  http.begin(wifi_client, serverName);
+  
+  // Specify content-type header
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  
+  // Prepare your HTTP POST request data
+  String httpRequestData = "api_key=" + apiKeyValue + "&temp=" + String(99.9)
+                        + "&humd=" + String(69.69) + "&fanspeed=" + String(233) + "";
+  Serial.print("httpRequestData: ");
+  Serial.println(httpRequestData);
+
+  // Send HTTP POST request
+  int httpResponseCode = http.POST(httpRequestData);
+   
+  // If you need an HTTP request with a content type: text/plain
+  //http.addHeader("Content-Type", "text/plain");
+  //int httpResponseCode = http.POST("Hello, World!");
+  
+  // If you need an HTTP request with a content type: application/json, use the following:
+  //http.addHeader("Content-Type", "application/json");
+  //int httpResponseCode = http.POST("{\"value1\":\"19\",\"value2\":\"67\",\"value3\":\"78\"}");
+      
+  if (httpResponseCode>0) {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+  }
+  else {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+  }
+  // Free resources
+  http.end();
 }

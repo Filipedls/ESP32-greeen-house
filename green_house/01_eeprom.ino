@@ -3,6 +3,7 @@
 
 Preferences prefs;
 
+// ==> LIGHTS
 // Stage
 const char* sel_stage_key = "selstg";
 int getMemStageVal(){
@@ -36,6 +37,24 @@ int getLightOffsTempMem(){
 }
 void setLightOffsTempMem(int temp){
   prefs.putInt(lights_off_temp_key, temp);
+}
+
+// State2RedVal
+const char* state_s2_redv_key = "lights2rv";
+int getMemState2RedVal(){
+  return prefs.getInt(state_s2_redv_key, 20);
+}
+void setMemState2RedVal(int val){
+  prefs.putInt(state_s2_redv_key, val);
+}
+
+// state_2_len_mins
+const char* state_2_len_mins_key = "lights2lm";
+int getMemState2LenMins(){
+  return prefs.getInt(state_2_len_mins_key, 15);
+}
+void setMemState2LenMins(int len_mins){
+  prefs.putInt(state_2_len_mins_key, len_mins);
 }
 
 // ==> FAN
@@ -85,12 +104,12 @@ void setMemFanManualSpeed(int num){
 }
 
 // Fan drying mode perc_time_on
-const char* fan_perc_time_on_key = "fanpton";
-float getMemFanDryPercTimeOn(){
-  return prefs.getFloat(fan_perc_time_on_key, 0.5);
+const char* fan_perc_time_on_key = "fanptonm";
+int getMemFanDryTimeOnMins(){
+  return prefs.getInt(fan_perc_time_on_key, 5);
 }
-void setMemFanDryPercTimeOn(float num){
-  prefs.putFloat(fan_perc_time_on_key, num);
+void setMemFanDryTimeOnMins(int num){
+  prefs.putInt(fan_perc_time_on_key, num);
 }
 
 // Fan drying mode fan_period_mins
@@ -134,7 +153,7 @@ void setWiFiSSID(String val){
 // WiFi Pass
 const char* wifipass_key = "wifipass";
 String getWiFiPass(){
-  return prefs.getString(wifipass_key, "ledigsilva1");
+  return prefs.getString(wifipass_key, "default");
 }
 void setWiFiPass(String val){
   prefs.putString(wifipass_key, val);

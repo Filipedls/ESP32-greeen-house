@@ -19,6 +19,10 @@ struct TempCfg {
 int min_fan_speed;
 
 #define MAX_PWM_FAN 255.0
+// bellow this speed the fan stops
+#define ABS_MIN_FAN_SPEED 35
+// bellow this speed the fan doesn't start
+#define MIN_FAN_START_SPEED 65
 
 // for noise reason the temp control will keep the fan speed at max_fan_speed
 int max_fan_speed = int(MAX_PWM_FAN);
@@ -31,7 +35,7 @@ int max_temp_lights; // = 34;
 // e.g.: for a 26 (3 offset) val means the temp profile will start at 23C (0%)
 //       and end at 29 (100%) 
 
-int main_fan_goal_temp;// = 26;
+//int main_fan_goal_temp;// = 26;
 // offset of 3C
 int linear_temp_offset = 3;
 
@@ -76,12 +80,21 @@ bool isFanModeOFF(){
 int main_fan_speed = 0;
 void setMainFanPwm(int val){
   if(val != main_fan_speed){
+    if(val < ABS_MIN_FAN_SPEED && val != 0)
+      val = ABS_MIN_FAN_SPEED;
+    // makes sure the fans starts
+    // the fan can have a speed as low as ABS_MIN_FAN_SPEED, but can only start with MIN_FAN_START_SPEED
+    // starts the at max speed for 100ms, to make sure the fan starts
+    if(main_fan_speed == 0 && val < MIN_FAN_START_SPEED){
+      setPwmVal(NLIGHTS, int(MAX_PWM_FAN));
+      delay(300);
+    }
     main_fan_speed = val;
     setPwmVal(NLIGHTS, val);
   }
 }
 
-int prev_main_fan_speed;
+int prev_main_fan_speed; // used for processDryingMode()
 void manuallySetMainFanPwm(int val){
   setMemFanManualSpeed(val);
   prev_main_fan_speed = val;
@@ -271,43 +284,46 @@ int getLinearTempSpeed(struct TempCfg temps_cfg, float temperature){
 }
 
 // Drying Mode control
-float perc_time_on;
+float time_on_mins;
 int fan_period_mins;// = 10;
-int prev_state = -1;
+int dry_prev_state = -1;
 void processDryingMode(){
 
   int hour, mins;
   getHourMin(&hour, &mins);
+  // the minute of the the 24h day
+  int mins_day = hour * 60 + mins;
   
-  int min_rest = mins % fan_period_mins;
-  int trans_mins = fan_period_mins * perc_time_on;
+  int min_rest = mins_day % fan_period_mins;
   
-  if(min_rest < trans_mins && prev_state != 1){
+  if(min_rest < time_on_mins && dry_prev_state != 1){
     // fan is on
-    prev_state = 1;
+    dry_prev_state = 1;
     setMainFanPwm(prev_main_fan_speed);
-  } else if(min_rest >= trans_mins && prev_state != 0){
+  } else if(min_rest >= time_on_mins && dry_prev_state != 0){
     // fan is off
-    prev_state = 0;
+    dry_prev_state = 0;
     prev_main_fan_speed = main_fan_speed;
     setMainFanPwm(0);
   } 
-  //Serial.println("processDryingMode >> min_rest:"+String(min_rest)+" trans_mins: "+String(trans_mins)+" prev_state: "+String(prev_state));
-  
+  //Serial.println("processDryingMode >> min_rest:"+String(min_rest)+" time_on_mins: "+String(time_on_mins)+" dry_prev_state: "+String(dry_prev_state));
 }
 
+// 1 day
+// fan_period_mins needs to be divisible (max_dry_period_mins%fan_period_mins == 0) by max_dry_period_mins
+const int max_dry_period_mins = 24*60;
 void setFanPeriodMins(int val_mins){
-  if(60%val_mins==0 && val_mins<60){
+  if(val_mins>0 && max_dry_period_mins%val_mins==0 && val_mins<=max_dry_period_mins){
     fan_period_mins = val_mins;
     setMemFanPeriodMins(val_mins);
   } 
 }
 
-void setPercTimeOn(int val_perc){
-  float val_ratio = min(max(0, val_perc), 100) / 100.0;
-  perc_time_on = val_ratio;
-  Serial.println("setPercTimeOn >> "+String(val_ratio));
-  setMemFanDryPercTimeOn(val_ratio);
+void setTimeOnMins(int val_mins){
+  val_mins = min(max(0, val_mins), fan_period_mins);
+  time_on_mins = val_mins;
+  Serial.println("setTimeOnMins >> "+String(val_mins));
+  setMemFanDryTimeOnMins(val_mins);
 }
 
 
@@ -374,16 +390,12 @@ void setupFan(){
 
   prev_main_fan_speed = getMemFanManualSpeed();
 
-  perc_time_on = getMemFanDryPercTimeOn();
+  time_on_mins = getMemFanDryTimeOnMins();
   fan_period_mins = getMemFanPeriodMins();
 
 //  // Setting a timer to use in startAutoFan()
 //  timer_fan = timerBegin(1, 8000, true);
 //  timerAttachInterrupt(timer_fan, &startAutoFan, true);
   
-  // makes sure the fans starts
-  // the fan can have a speed as low as 40, but can not start with that
-  setPwmVal(NLIGHTS, 160);
-  delay(700);
   setMainFanPwm(prev_main_fan_speed);
 }
