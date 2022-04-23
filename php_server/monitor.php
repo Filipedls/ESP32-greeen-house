@@ -2,6 +2,7 @@
 
 session_start();
 if ( ! isset($_SESSION['loggedIn']) || $_SESSION['loggedIn'] == 0) {
+    // not logged in
     header('Location: login.php');
     exit;
 }
@@ -9,7 +10,7 @@ if ( ! isset($_SESSION['loggedIn']) || $_SESSION['loggedIn'] == 0) {
 $servername = "localhost";
 $dbname = "id17187452_esp32ghs";
 $username = "id17187452_esp32ghsun";
-$password = "g~#Do(%eVIkyM$9^";
+$password = "";
 
 // Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);
@@ -43,11 +44,13 @@ $conn->close();
     <script src="https://cdn.plot.ly/plotly-2.11.1.min.js"></script>
 </head>
 <body>
+<div style="width: 80%; margin-left: 10%;">
 <div id="temp_plot"></div>
 <br>
 <div id="humd_plot"></div>
 <br>
 <div id="fans_plot"></div>
+</div>
 <script>
   
 // Access the array elements
@@ -58,6 +61,16 @@ var isMobile = false;
 if( /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ) {
  isMobile = true;
 }
+
+var styles;
+if (isMobile){
+    styles = 'a.modebar-btn {font-size: 35px !important;}';
+} else {
+    styles = 'a.modebar-btn {font-size: 20px !important;}';
+}
+var styleSheet = document.createElement("style");
+styleSheet.innerText = styles;
+document.head.appendChild(styleSheet);
 
 // from: https://blog.logrocket.com/top-picks-javascript-chart-libraries/
 // from: https://github.com/plotly/plotly.js
@@ -83,15 +96,46 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
     ];
     const layout = {
         title: title_val,
+        xaxis: {
+            //autorange: true,
+            range: [data_sensors['datetime'][10], data_sensors['datetime'][0]],
+            rangeselector: {buttons: [
+                {
+                  count: 1,
+                  label: '1d',
+                  step: 'day',
+                  stepmode: 'backward'
+                },
+                {
+                  count: 5,
+                  label: '5d',
+                  step: 'day',
+                  stepmode: 'backward'
+                },
+                {
+                  count: 1,
+                  label: '1M',
+                  step: 'month',
+                  stepmode: 'backward'
+                },
+                {step: 'all'}
+              ]},
+            //rangeslider: {range: [data_sensors['datetime'].slice(-1)[0], data_sensors['datetime'][0]]},
+            type: 'date',
+        },
         yaxis: {
+          autorange: true,
           title: yaxis_title,
           ticksuffix: ticksuffix_val
+        },
+        modebar: {
+          orientation: 'v',
         },
     };
     if (isMobile){
         data_plot[0].marker.size = 7;
         data_plot[0].line.width = 5;
-        layout.font = {size: 24};
+        layout.font = {size: 28};
     }
     Plotly.newPlot(div_id, data_plot, layout, config_plot);
 }
