@@ -16,8 +16,6 @@ void setup(){
   setupServer(); // needs setupTime, setupStages
   // wait 3s for the temp sensor
   delay(3000);
-  //postdataphp();
-  //logToGS_php();
 }
 
 unsigned long previousMillis = 0;
@@ -30,19 +28,21 @@ void loop(){
     
     float temp = NAN;
     float humid = NAN;
+    int fan_Speed;
     readDHTTemperatureHumidity(&temp, &humid);
     
     updateStage(temp);
-    updateFanSpeed(temp);
+    int fan_speed = updateFanSpeed(temp);
     updateTempHumidAvg(temp, humid); 
         
+//    if(i==1){
+//      getResetTemperatureHumidityAvg(&temp, &humid);
+//      Serial.println("Avg temp/humid avg - "+String(temp)+" / "+String(humid));
+//    }
     if(i==1){
-      getResetTemperatureHumidityAvg(&temp, &humid);
-      Serial.println("Avg temp/humid avg - "+String(temp)+" / "+String(humid));
+      int avg_light_power = getAvgLightPower();
+      logTempHumidToGS(true, fan_speed, avg_light_power);
     }
-//    if(i==1)
-//      logTempHumidToGS(true);
-// 
 
     while (millis() <= previousMillis + interval);
     //Serial.println("LOOP! Passed: "+String(millis()-startMillis)+" ms");

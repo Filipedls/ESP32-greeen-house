@@ -35,7 +35,7 @@ int max_temp_lights; // = 34;
 // e.g.: for a 26 (3 offset) val means the temp profile will start at 23C (0%)
 //       and end at 29 (100%) 
 
-//int main_fan_goal_temp;// = 26;
+int main_fan_goal_temp;// = 26;
 // offset of 3C
 int linear_temp_offset = 3;
 
@@ -134,8 +134,11 @@ void setLinearTempConfig(int main_fan_goal_temp_new_val){
   linear_temp_config.temps[1] = main_fan_goal_temp+linear_temp_offset;
 }
 
+float prev_err = 0; // PID aux
 void setMainFanGoalTemp(int main_fan_goal_temp_new_val){
   if(main_fan_goal_temp_new_val <= max_temp_lights && main_fan_goal_temp_new_val >= min_fan_goal_temp){
+    // corrects the diff error
+    prev_err = prev_err - (main_fan_goal_temp_new_val-main_fan_goal_temp);
     setLinearTempConfig(main_fan_goal_temp_new_val);
     float temperature = readDHTTemperature();
     updateFanSpeed(temperature);
@@ -217,7 +220,6 @@ float kI_decay = 0.01;
 
 // aux vars
 bool prev_cycle_was_PID = false;
-float prev_err = 0;
 float err_sum = 0;
 float err = 0;
 int setPIDfanSpeed(float temp, float lightPowerRatio){
@@ -328,7 +330,7 @@ void setTimeOnMins(int val_mins){
 
 
 int n_times_temp_nan = 0;
-void updateFanSpeed(float temperature){
+int updateFanSpeed(float temperature){
 //  if(timer_is_ON){
 //    //Serial.println("temp timer_is_ON! nothing done");
 //    return;
@@ -367,7 +369,7 @@ void updateFanSpeed(float temperature){
         // to not overflow the var n_times_temp_nan, only increases til 3
         Serial.println("temp was NAN, will be using AvgLightPower after 3x!");
         n_times_temp_nan++;
-        return;
+        return main_fan_speed;
       }
     }
     fan_speed = max(min(max_fan_speed,fan_speed), min_fan_speed);
@@ -378,6 +380,7 @@ void updateFanSpeed(float temperature){
   } else {
     prev_cycle_was_PID = false;  
   }
+  return main_fan_speed;
 }
 
 void setupFan(){

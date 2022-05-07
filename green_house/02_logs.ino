@@ -61,7 +61,19 @@ const uint16_t httpsPort = 443;
 //  client.setInsecure();
 //}
 
-void logToGS(String params[], float vals[], size_t nElems) {
+String convertToUrlStringParams(String keys[], String vals[], size_t nElems){
+  String kv_string = "";
+  for(int i=0; i<nElems; i++){
+    kv_string += keys[i];
+    kv_string += "=";
+    kv_string += vals[i];
+    if(i<nElems-1)
+      kv_string += "&";
+  }
+  return kv_string;
+}
+
+void logToGS(String params_string) {
   
   Serial.print("[HTTPS] start...");
 
@@ -70,15 +82,7 @@ void logToGS(String params[], float vals[], size_t nElems) {
   client.setTimeout(20000);
   client.setInsecure();
   
-  String url = String(google_sheets_url);
-  url += "?";
-  for(int i=0; i<nElems; i++){
-    url += params[i];
-    url += "=";
-    url += vals[i];
-    if(i<nElems-1)
-      url += "&";
-  }
+  String url = String(google_sheets_url) + "?" + params_string;
 
   // Connect to remote server
   Serial.print("connecting to ");
@@ -118,34 +122,25 @@ float sum_temp = 0.0;
 float sum_humid = 0.0;
 int avg_i = 0;
 void updateTempHumidAvg(float temp, float humid) {
-  sum_temp += temp;
-  sum_humid += humid;
-  avg_i++;
-  Serial.println("Updated temp/humid avg - "+String(sum_temp)+" / "+String(sum_humid)+"  "+String(avg_i));
+  if(!isnan(temp) && !isnan(humid)){
+    sum_temp += temp;
+    sum_humid += humid;
+    avg_i++;
+    //Serial.println("Updated temp/humid avg - "+String(sum_temp)+" / "+String(sum_humid)+"  "+String(avg_i));
+  }
 }
 
 void getResetTemperatureHumidityAvg(float * rt, float * rh) {
-  *rt = sum_temp/avg_i;
-  *rh = sum_humid/avg_i;
-  avg_i = 0;
-  sum_temp = 0.0;
-  sum_humid = 0.0;
-}
-
-void logTempHumidToGS(bool get_avg) {
-  
-  float temperature = NAN;
-  float humidity = NAN;
-  if(get_avg){
-    getResetTemperatureHumidityAvg(&temperature, &humidity);
+  if(avg_i != 0){
+    *rt = sum_temp/avg_i;
+    *rh = sum_humid/avg_i;
+    avg_i = 0;
+    sum_temp = 0.0;
+    sum_humid = 0.0;
   } else {
-    readDHTTemperatureHumidity(&temperature, &humidity);
+    *rt = 0.0;
+    *rh = 0.0;
   }
-  
-  String names[2]  =  {"temp", "humid"};
-  float vals[2] = {temperature, humidity};
-
-  logToGS(names, vals, 2);
 }
 
 ///// SQL
@@ -223,9 +218,9 @@ void logTempHumidToGS(bool get_avg) {
 
 const char* serverName = "http://esp32gh.000webhostapp.com/post-esp-data.php";
 
-String apiKeyValue = "Z2E58eFfzfBb";
+String apiKeyValue = "";
 
-void postdataphp() {
+void postdataphp(String params_string) {
   WiFiClient wifi_client;
   HTTPClient http;
 
@@ -238,10 +233,10 @@ void postdataphp() {
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   
   // Prepare your HTTP POST request data
-  String httpRequestData = "api_key=" + apiKeyValue + "&temp=" + String(99.9)
-                        + "&humd=" + String(69.69) + "&fanspeed=" + String(233) + "";
-  Serial.print("httpRequestData: ");
-  Serial.println(httpRequestData);
+  String datetime_str = getDateTime(true);
+  String httpRequestData = "api_key=" + apiKeyValue + "&datetime=" + datetime_str + "&"+ params_string;//"&temp=" + String(99.9) + "&humd=" + String(69.69) + "&fanspeed=" + String(233) + "";
+//  Serial.print("httpRequestData: ");
+//  Serial.println(httpRequestData);
 
   // Send HTTP POST request
   int httpResponseCode = http.POST(httpRequestData);
@@ -254,14 +249,41 @@ void postdataphp() {
   //http.addHeader("Content-Type", "application/json");
   //int httpResponseCode = http.POST("{\"value1\":\"19\",\"value2\":\"67\",\"value3\":\"78\"}");
       
-  if (httpResponseCode>0) {
+  if(httpResponseCode>0) {
     Serial.print("HTTP Response code: ");
     Serial.println(httpResponseCode);
-  }
-  else {
+//    String payload = http.getString();
+//    Serial.println(payload);
+  } else {
     Serial.print("Error code: ");
     Serial.println(httpResponseCode);
   }
   // Free resources
   http.end();
+}
+
+
+void logTempHumidToGS(bool get_avg, int fan_speed, int avg_light_power) {
+  
+  float temperature = NAN;
+  float humidity = NAN;
+  if(get_avg){
+    getResetTemperatureHumidityAvg(&temperature, &humidity);
+  } else {
+    readDHTTemperatureHumidity(&temperature, &humidity);
+  }
+  
+//  String names[2]  =  {"temp", "humid"};
+//  String vals[2] = {String(temperature), String(humidity)};
+//
+//    
+//  String params_string = convertToUrlStringParams(names, vals, 2);
+
+  //logToGS(params_string);
+
+  String names[4]  =  {"temp", "humid", "fanspeed", "avglight"};
+  String vals[4] = {String(temperature), String(humidity), String(fan_speed), String(avg_light_power)};
+
+  String params_string = convertToUrlStringParams(names, vals, 4);
+  postdataphp(params_string);
 }

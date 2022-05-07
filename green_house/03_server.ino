@@ -236,7 +236,7 @@ String processor(const String& var){
     }
     return buttons;
   } else if (var == "DATETIME"){
-    return getDateTime();
+    return getDateTime(false);
   } else if(var == "DROPDOWNPLACEHOLDER"){
     String buttons ="<select id=\"stagesdropdown\" onchange=\"dowpdownChanged(this,'updatestage')\">";
     int stateValue = getStage();
@@ -477,5 +477,5 @@ void setupServer(){
   });
   // Start server
   server.begin();
-  server_started_at = getDateTime();
+  server_started_at = getDateTime(false);
 }

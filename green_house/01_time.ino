@@ -56,12 +56,18 @@ int getHour() {
   return (int) timeinfo.tm_hour;//String(hour).toInt();
 }
 
-String getDateTime(){
+String getDateTime(bool format_for_sql){
   struct tm timeinfo;
   timeinfo = getTime();
    //GET DATE
   char dateTime[35];
-  strftime(dateTime, sizeof(dateTime), "%A, %B %d %Y %H:%M", &timeinfo);
+  String date_format;
+  if(format_for_sql){
+    date_format = String("%Y-%m-%d %H:%M:%S");
+  } else {
+    date_format = String("%A, %B %d %Y %H:%M");
+  }
+  strftime(dateTime, sizeof(dateTime), date_format.c_str(), &timeinfo);
   return String(dateTime);
 }
 
