@@ -16,9 +16,11 @@ $api_key= $temp_val = $humd_val = $fanspeed_val = "";
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $api_key = test_input($_POST["api_key"]);
     if($api_key == $api_key_value) {
-        $temp_val = test_input($_POST["temp"]);
-        $humd_val = test_input($_POST["humd"]);
-        $fanspeed_val = test_input($_POST["fanspeed"]);
+        $date_time = test_input($_POST["datetime"]);
+        $temp_val = check_numeric(test_input($_POST["temp"]));
+        $humd_val = check_numeric(test_input($_POST["humid"]));
+        $fanspeed_val = check_numeric(test_input($_POST["fanspeed"]));
+        $avg_light_power = check_numeric(test_input($_POST["avglight"]));
         
         // Create connection
         $conn = new mysqli($servername, $username, $password, $dbname);
@@ -27,8 +29,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             die("Connection failed: " . $conn->connect_error);
         } 
         
-        $sql = "INSERT INTO sensorvals (`datetime`, `temp`, `humd`, `fanspeed`)
-        VALUES (current_timestamp(), '" . $temp_val . "', '" . $humd_val . "', '" . $fanspeed_val . "')";
+        $sql = "INSERT INTO sensors_values (`datetime`, `temp`, `humd`, `fanspeed`, `avglight`)
+        VALUES ('" . $date_time . "', " . $temp_val . ", " . $humd_val . ", " . $fanspeed_val . ", " . $avg_light_power . ")";
         
         if ($conn->query($sql) === TRUE) {
             echo "New record created successfully";
@@ -53,4 +55,12 @@ function test_input($data) {
     $data = stripslashes($data);
     $data = htmlspecialchars($data);
     return $data;
+}
+
+function check_numeric($data) {
+    if (is_numeric($data)){
+        return "'" . $data . "'";
+    } else {
+        return "null";
+    }
 }

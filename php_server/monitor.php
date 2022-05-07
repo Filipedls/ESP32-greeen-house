@@ -19,7 +19,7 @@ if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 } 
 
-$sql = "SELECT datetime, temp, humd, fanspeed FROM sensorvals ORDER BY datetime DESC";
+$sql = "SELECT datetime, temp, humd, fanspeed, avglight FROM sensors_values ORDER BY datetime DESC";
 
 $cols_array_dict = array();
 if ($result = $conn->query($sql)) {
@@ -45,14 +45,15 @@ $conn->close();
 </head>
 <body>
 <div style="width: 80%; margin-left: 10%;">
-<div id="temp_plot"></div>
-<br>
-<div id="humd_plot"></div>
-<br>
-<div id="fans_plot"></div>
+    <div id="temp_plot"></div>
+    <br>
+    <div id="humd_plot"></div>
+    <br>
+    <div id="fans_plot"></div>
+    <br>
+    <div id="light_plot"></div>
 </div>
 <script>
-  
 // Access the array elements
 var data_sensors = 
     <?php echo json_encode($cols_array_dict); ?>;
@@ -64,9 +65,9 @@ if( /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(naviga
 
 var styles;
 if (isMobile){
-    styles = 'a.modebar-btn {font-size: 35px !important;}';
+    styles = 'a.modebar-btn {font-size: 45px !important;height: 45px !important;}';
 } else {
-    styles = 'a.modebar-btn {font-size: 20px !important;}';
+    styles = 'a.modebar-btn {font-size: 20px !important;height: 26px !important;}';
 }
 var styleSheet = document.createElement("style");
 styleSheet.innerText = styles;
@@ -75,7 +76,7 @@ document.head.appendChild(styleSheet);
 // from: https://blog.logrocket.com/top-picks-javascript-chart-libraries/
 // from: https://github.com/plotly/plotly.js
 
-function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_val, div_id) {
+function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_val, div_id, add_extras) {
 
     var config_plot = {responsive: true};
 
@@ -96,10 +97,54 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
     ];
     const layout = {
         title: title_val,
+        height: 380,
+        margin: {
+            l: 80,
+            r: 50,
+            b: 70,
+            t: 60,
+            pad: 4
+        },
         xaxis: {
             //autorange: true,
             range: [data_sensors['datetime'][10], data_sensors['datetime'][0]],
-            rangeselector: {buttons: [
+            //rangeslider: {range: [data_sensors['datetime'].slice(-1)[0], data_sensors['datetime'][0]]},
+            type: 'date',
+            nticks: 26,
+        },
+        yaxis: {
+          autorange: true,
+          title: yaxis_title,
+          ticksuffix: ticksuffix_val
+        },
+        modebar: {
+          orientation: 'v',
+          remove:['autoscale','lasso', 'select', 'zoomin', 'zoomout'],
+        },
+    };
+    if (isMobile){
+        data_plot[0].marker.size = 7;
+        data_plot[0].line.width = 5;
+        layout.font = {size: 28};
+        layout.margin = {
+            l: 120,
+            r: 50,
+            b: 120,
+            t: 120,
+            pad: 4
+        };
+        layout.height = 530;
+        layout.xaxis.nticks = 13;
+    }
+    if(title_val == ''){
+        delete layout['title'];
+        layout.height = layout.height-layout.margin.t;
+        layout.margin.t = 5;
+    }
+
+    if(add_extras){
+        layout.xaxis.rangeselector = {
+            buttons: [
                 {
                   count: 1,
                   label: '1d',
@@ -119,37 +164,128 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
                   stepmode: 'backward'
                 },
                 {step: 'all'}
-              ]},
-            //rangeslider: {range: [data_sensors['datetime'].slice(-1)[0], data_sensors['datetime'][0]]},
-            type: 'date',
-        },
-        yaxis: {
-          autorange: true,
-          title: yaxis_title,
-          ticksuffix: ticksuffix_val
-        },
-        modebar: {
-          orientation: 'v',
-        },
-    };
-    if (isMobile){
-        data_plot[0].marker.size = 7;
-        data_plot[0].line.width = 5;
-        layout.font = {size: 28};
+              ]
+          };
+
+
     }
     Plotly.newPlot(div_id, data_plot, layout, config_plot);
 }
 
-newScatterPlot('temp', 'orange', 'Temperature', '','°C', 'temp_plot');
-newScatterPlot('humd', 'blue', 'Humidity', '','%', 'humd_plot');
-newScatterPlot('fanspeed', 'green', 'Fan Speed', '0-255','', 'fans_plot');
+newScatterPlot('temp', 'orange', 'Temp & Humid', 'Temperature','°C', 'temp_plot', true);
+newScatterPlot('humd', 'blue', '', 'Humidity','%', 'humd_plot', false);
+newScatterPlot('fanspeed', 'green', 'Fan Speed', '0-255','', 'fans_plot', true);
+newScatterPlot('avglight', 'red', 'Avg Light', '0-255','', 'light_plot', true);
 
-// https://stackoverflow.com/questions/47933524/how-do-i-synchronize-the-zoom-level-of-multiple-charts-with-plotly-js
+
+    // var config_plot = {responsive: true};
+
+    // var data_plots = [
+    //   {
+    //     x: data_sensors['datetime'],
+    //     y: data_sensors['temp'],
+    //     name: 'Temperature',
+    //     type: 'scatter',
+    //     marker: {
+    //         color: 'orange',
+    //         size: 5,
+    //     },
+    //     line: {
+    //         color: 'orange',
+    //         width: 3
+    //     }
+    //   },
+    //   {
+    //     x: data_sensors['datetime'],
+    //     y: data_sensors['humd'],
+    //     name: 'Humidity',
+    //     xaxis: 'x2',
+    //     yaxis: 'y2',
+    //     type: 'scatter',
+    //     marker: {
+    //         color: 'blue',
+    //         size: 5,
+    //     },
+    //     line: {
+    //         color: 'blue',
+    //         width: 3
+    //     }
+    //   }
+    // ];
+    // const layout = {
+    //     title: 'plots',
+    //     grid: {
+    //         rows: 2,
+    //         columns: 1,
+    //         pattern: 'independent',
+    //     },
+    //     height: 600,
+    //     xaxis: {
+    //         //autorange: true,
+    //         range: [data_sensors['datetime'][10], data_sensors['datetime'][0]],
+    //         rangeselector: {buttons: [
+    //             {
+    //               count: 1,
+    //               label: '1d',
+    //               step: 'day',
+    //               stepmode: 'backward'
+    //             },
+    //             {
+    //               count: 5,
+    //               label: '5d',
+    //               step: 'day',
+    //               stepmode: 'backward'
+    //             },
+    //             {
+    //               count: 1,
+    //               label: '1M',
+    //               step: 'month',
+    //               stepmode: 'backward'
+    //             },
+    //             {step: 'all'}
+    //           ]},
+    //         //rangeslider: {range: [data_sensors['datetime'].slice(-1)[0], data_sensors['datetime'][0]]},
+    //         type: 'date',
+    //         nticks: 26,
+
+    //     },
+    //     xaxis2: {
+    //         range: [data_sensors['datetime'][10], data_sensors['datetime'][0]],
+    //         type: 'date',
+    //         nticks: 26,
+
+    //     },
+    //     yaxis: {
+    //       autorange: true,
+    //       title: 'Temperature',
+    //       ticksuffix: '°C'
+    //     },
+    //     yaxis2: {
+    //       autorange: true,
+    //       title: 'Humidity',
+    //       ticksuffix: '%'
+    //     },
+    //     modebar: {
+    //       orientation: 'v',
+    //     },
+    //     showlegend: false,
+    // };
+    // if (isMobile){
+    //     for (var i = 0; i < data_plot.length; i++) {
+    //         data_plot[i].marker.size = 7;
+    //         data_plot[i].line.width = 5;
+    //     }
+    //     layout.font = {size: 28};
+    // }
+    // Plotly.newPlot('temp_plot', data_plots, layout, config_plot);
+
+// // https://stackoverflow.com/questions/47933524/how-do-i-synchronize-the-zoom-level-of-multiple-charts-with-plotly-js
 var myDiv = document.getElementById("temp_plot");
 var myDiv2 = document.getElementById("humd_plot");
 var myDiv3 = document.getElementById("fans_plot");
+var myDiv4 = document.getElementById("light_plot");
 
-var divs = [myDiv, myDiv2, myDiv3];
+var divs = [myDiv, myDiv2, myDiv3, myDiv4];
 
 function relayout(ed, divs) {
   if (Object.entries(ed).length === 0) {return;}
@@ -162,18 +298,21 @@ function relayout(ed, divs) {
       'xaxis.range[0]': ed["xaxis.range[0]"],
       'xaxis.range[1]': ed["xaxis.range[1]"],
       'xaxis.autorange': ed["xaxis.autorange"],
+      //'yaxis.autorange': ed["yaxis.autorange"],
+      //'yaxis.autorange': true,
      };
      Plotly.relayout(div, update);
     }
   });
 }
 
-var plots = [myDiv, myDiv2, myDiv3];
+var plots = [myDiv, myDiv2, myDiv3, myDiv4];
 plots.forEach(div => {
   div.on("plotly_relayout", function(ed) {
     relayout(ed, divs);
   });
 }); 
+console.log('done');
 </script>
 </body>
 </html>

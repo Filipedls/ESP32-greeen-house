@@ -218,7 +218,7 @@ void getResetTemperatureHumidityAvg(float * rt, float * rh) {
 
 const char* serverName = "http://esp32gh.000webhostapp.com/post-esp-data.php";
 
-String apiKeyValue = "";
+String apiKeyValue = "Z2E58eFfzfBb";
 
 void postdataphp(String params_string) {
   WiFiClient wifi_client;
