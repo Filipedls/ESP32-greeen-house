@@ -153,7 +153,7 @@ void setWiFiSSID(String val){
 // WiFi Pass
 const char* wifipass_key = "wifipass";
 String getWiFiPass(){
-  return prefs.getString(wifipass_key, "default");
+  return prefs.getString(wifipass_key, "thepass");
 }
 void setWiFiPass(String val){
   prefs.putString(wifipass_key, val);
@@ -180,10 +180,25 @@ void clearPrefs(){
   prefs.clear();
 }
 
+void checkBootButtonClearPrefs(){
+  // if boot button is pressed after the setup delay() call (~3s after boot), the preferences will be cleared. Restart again for it to have effect.
+  int boot_button_reading = digitalRead(0); // BOOT button's pin number is 0
+  if (boot_button_reading == LOW) { // default state is HIGH
+    Serial.println("BOOT button is pressed on setup, clearing preferences and restarting!");
+    clearPrefs();
+    delay(1000);
+    ESP.restart();
+  }
+}
+
 void setupEEPROM(){
   // Open Preferences with my-app namespace. Each application module, library, etc
   // has to use a namespace name to prevent key name collisions. We will open storage in
   // RW-mode (second parameter has to be false, read only mode flag).
   // Note: Namespace name is limited to 15 chars.
   prefs.begin("greenkea", false);
+  // boot button as input to clear preferences
+  pinMode(0, INPUT);
+  delay(100);
+  checkBootButtonClearPrefs();
 }

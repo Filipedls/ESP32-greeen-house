@@ -41,6 +41,7 @@ const char index_html[] PROGMEM = R"rawliteral(
      background-color: lightgray;
     }
     input[type=range] { background-color: lightgray; width: min(50vw, 220px); }
+    select:disabled { -webkit-text-fill-color: black; }
     h2 { font-size: 2.0rem; }
     h4 {margin-block: 1.0em;}
     h5 {margin-block: 1.3em;}

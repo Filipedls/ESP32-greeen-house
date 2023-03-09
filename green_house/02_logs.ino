@@ -224,7 +224,7 @@ void postdataphp(String params_string) {
   WiFiClient wifi_client;
   HTTPClient http;
 
-  wifi_client.setTimeout(20000);
+  wifi_client.setTimeout(50000);
   
   // Your Domain name with URL path or IP address with path
   http.begin(wifi_client, serverName);
