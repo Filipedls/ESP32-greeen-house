@@ -1,3 +1,11 @@
+
+// TOCHANGE
+//   * create lights and fan section with the respective info
+//   * hide sliders
+//   * change buttons to icons
+//   * add a middle div around the controls with a different color (vertical style)
+//   * 
+
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
@@ -27,11 +35,52 @@ String server_started_at;
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
 
+const uint8_t favicon_ico_gz[] PROGMEM = {
+  0x1f, 0x8b, 0x08, 0x08, 0x61, 0x94, 0x36, 0x64, 0x00, 0x03, 0x66, 0x61,
+  0x76, 0x69, 0x63, 0x6f, 0x6e, 0x2e, 0x69, 0x63, 0x6f, 0x00, 0x63, 0x60,
+  0x60, 0x04, 0x42, 0x01, 0x01, 0x06, 0x20, 0xa9, 0xc0, 0x90, 0xc1, 0xc2,
+  0xc0, 0x20, 0xc6, 0xc0, 0xc0, 0xa0, 0x01, 0xc4, 0x40, 0x21, 0xa0, 0x08,
+  0x44, 0x1c, 0x0c, 0x80, 0x72, 0xc2, 0xdc, 0x10, 0x4c, 0x0f, 0xe0, 0x71,
+  0xb8, 0xdd, 0x97, 0xe1, 0xff, 0x7f, 0x46, 0x72, 0xf5, 0x7b, 0x1d, 0xea,
+  0xbe, 0xef, 0x73, 0xa6, 0x47, 0x84, 0x58, 0xf5, 0x36, 0xdb, 0x2a, 0xb5,
+  0xac, 0x96, 0xe6, 0x7e, 0xb1, 0x5c, 0x98, 0xf5, 0xcf, 0x79, 0x73, 0x4d,
+  0xa3, 0xd7, 0xe1, 0xee, 0xcd, 0x6e, 0xfb, 0x9a, 0x67, 0x5a, 0x2e, 0xca,
+  0xfa, 0x0b, 0x14, 0xff, 0xee, 0xb8, 0xb1, 0x46, 0x1b, 0x9f, 0x7e, 0xdb,
+  0x95, 0x45, 0x17, 0x2d, 0xe6, 0x67, 0xfc, 0x07, 0x61, 0x87, 0x8d, 0x55,
+  0x1f, 0xfc, 0xf7, 0xf7, 0x0b, 0xb8, 0xee, 0x6e, 0x5c, 0x6b, 0xb5, 0x38,
+  0x07, 0x2c, 0x66, 0xbb, 0x3c, 0xff, 0x25, 0x2e, 0xbd, 0x4e, 0x1b, 0x5b,
+  0xc5, 0x2d, 0x16, 0x66, 0xfe, 0xb3, 0x5e, 0x9a, 0xfb, 0xdf, 0x75, 0x67,
+  0xe3, 0x7f, 0xa0, 0xdd, 0xff, 0x3d, 0x0e, 0xf7, 0x5a, 0x78, 0x1d, 0xee,
+  0x9a, 0x0d, 0xc4, 0xff, 0xdd, 0x76, 0x37, 0xff, 0x77, 0xdc, 0x58, 0xf5,
+  0xdf, 0x69, 0x63, 0x4d, 0x31, 0x36, 0xfd, 0xce, 0x9b, 0xab, 0x1b, 0x5c,
+  0xb6, 0x37, 0xfc, 0x06, 0xa9, 0x05, 0xe9, 0xf5, 0x3c, 0xdc, 0xfd, 0xce,
+  0xed, 0x60, 0x8f, 0xac, 0xc7, 0x91, 0x2e, 0x65, 0x20, 0x7f, 0x9a, 0xe7,
+  0xe1, 0xae, 0xa9, 0x5e, 0x47, 0x3a, 0x1d, 0xf1, 0xb9, 0xdf, 0xe3, 0xc4,
+  0x44, 0x3e, 0xcf, 0x83, 0xdd, 0x4e, 0x5e, 0x07, 0xbb, 0xbd, 0xdd, 0x8e,
+  0xf5, 0x0a, 0x11, 0x17, 0x6a, 0x44, 0x80, 0xe9, 0xff, 0x15, 0x80, 0xf8,
+  0x00, 0x98, 0x26, 0x15, 0xcc, 0xf8, 0xbf, 0x95, 0x79, 0xce, 0xff, 0xff,
+  0x82, 0xeb, 0xff, 0xff, 0x07, 0xd1, 0x40, 0x33, 0xb6, 0x11, 0xad, 0x77,
+  0xe6, 0x7f, 0x39, 0xa0, 0xfe, 0x2f, 0x7a, 0x37, 0xff, 0xff, 0xb7, 0x7e,
+  0xfd, 0xff, 0xbf, 0xde, 0x0d, 0xb0, 0xfe, 0xaf, 0x0c, 0xd3, 0xfe, 0x2b,
+  0x11, 0x69, 0x77, 0x10, 0x50, 0xfd, 0x3f, 0xb3, 0xa7, 0x10, 0xfd, 0x66,
+  0x4f, 0xc0, 0xfa, 0xff, 0x81, 0xc5, 0x89, 0x77, 0xff, 0x71, 0xfe, 0xb5,
+  0xff, 0xff, 0xab, 0x9e, 0xf9, 0xff, 0x1f, 0x44, 0x03, 0xf9, 0x27, 0x89,
+  0xd6, 0x0b, 0x02, 0xd3, 0xfe, 0x5b, 0x00, 0xf5, 0xf4, 0x01, 0xed, 0xfd,
+  0x05, 0xf4, 0xcf, 0x24, 0x30, 0x9f, 0x1c, 0x30, 0xeb, 0xbf, 0x0c, 0x59,
+  0xfa, 0x08, 0x00, 0xa0, 0x8f, 0x18, 0xfe, 0xd5, 0x43, 0xf0, 0x03, 0x7e,
+  0x08, 0x3e, 0xc0, 0x0e, 0xc4, 0x40, 0xfa, 0x21, 0x50, 0xee, 0x7f, 0x3f,
+  0x10, 0x03, 0xf9, 0xff, 0x98, 0x21, 0x18, 0xc4, 0x06, 0xe3, 0xfb, 0x10,
+  0xbd, 0x00, 0xcf, 0x10, 0xed, 0xa2, 0x7e, 0x04, 0x00, 0x00
+};
+
+#define favicon_ico_gz_len 418
+
+
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href='https://use.fontawesome.com/releases/v5.7.2/css/all.css' integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+  <link rel="stylesheet" href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css' crossorigin="anonymous">
   <style>
     html {
      font-family: Arial;
@@ -63,17 +112,17 @@ const char index_html[] PROGMEM = R"rawliteral(
 <body>
   <h3>Greenkea</h3>
   <p>
-    <i class="fas fa-thermometer-half" style="color:#059e8a;"></i> 
+    <i class="fa fa-thermometer-half" style="color:#059e8a;"></i> 
     <span id="temperature">%TEMPERATURE%</span><sup class="units">&deg;C</sup> 
-    <i class="fas fa-tint" style="color:#00add6;"></i> 
+    <i class="fa fa-tint" style="color:#00add6;"></i> 
     <span id="humidity">%HUMIDITY%</span><sup class="units">&percnt;</sup>
-    <button type="button" onclick="updateSensorsSliders(this)">R</button>
+    <i class="fa fa-refresh" aria-hidden="true" style="color:#444444;" onclick="updateSensorsSliders(this)"></i>
   </p>
   <h6 style="margin-block:1.33em;">%DATETIME%</h6>
-  <label class="switch">
+  <p><label class="switch">
   <input type="checkbox" onclick="checklock(this)" id="lockcheckbox">
   <span class="slider"></span>
-  </label>
+  </label> <i class="fa fa-floppy-o" aria-hidden="true" onclick="saveAll(this)"></i></p>
   <h4>Lights</h4>
   %SLIDERSPLACEHOLDER%
   <h4>Modes</h4>
@@ -87,8 +136,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     <summary>Info&amp;Config</summary>
     <br>
     %INFO%
-    <form action="/setcfg" name="cfgform" target="formtarget">
-      <select id="cfgsel" name="cfgsel">
+    <form action="/setcfg" name="cfgformgrow" target="formtarget">
+      <select id="cfgselgrow" name="cfgsel">
         <option value="minfanspeed">Min Fan Speed</option>
         <option value="maxfanspeed">Max Fan Speed</option>
         <option value="lintemposet">Linear Temp Offset</option>
@@ -98,15 +147,28 @@ const char index_html[] PROGMEM = R"rawliteral(
         <option value="lightS2redv">Lights S2 Red PWM</option>
         <option value="timeonmins">Drying Time ON Mins</option>
         <option value="fanpermins">Drying Period mins</option>
-        <option value="wifissid">WiFi SSID</option>
-        <option value="wifipass">WiFi Pass</option>
-        <option value="wifiip">WiFi IP</option>
-        <option value="wifigw">WiFi Gateway</option>
-        <option value="cmd">cmd</option>
       </select>
       <input type="text" name="cfgval">
-      <input type="reset" value="Set" onclick="document.forms['cfgform'].submit();">
+      <input type="reset" value="Set" onclick="document.forms['cfgformgrow'].submit();">
     </form>
+    <details>
+      <summary>Connections' Configs</summary>
+      %INFOCONN%
+      <form action="/setcfg" name="cfgform" target="formtarget">
+        <select id="cfgsel" name="cfgsel">
+          <option value="wifissid">WiFi SSID</option>
+          <option value="wifipass">WiFi Pass</option>
+          <option value="wifiip">WiFi IP</option>
+          <option value="wifigw">WiFi Gateway</option>
+          <option value="logcloudflag">Log to Cloud flag</option>
+          <option value="logcloudurl">Log Server URL</option>
+          <option value="logcloudapikey">Log Server API key</option>
+          <option value="cmd">cmd</option>
+        </select>
+        <input type="text" name="cfgval">
+        <input type="reset" value="Set" onclick="document.forms['cfgform'].submit();">
+      </form>
+    </details>
     <iframe name="formtarget" id="formtarget" style="height: 21pt;"></iframe>
     <br>
     <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
@@ -208,6 +270,17 @@ function checklock(elem) {
   }
 }
 checklock(document.getElementById("lockcheckbox"));
+function saveAll(element) {
+  element.style.color = "red";
+  var xhr = new XMLHttpRequest();
+  xhr.onreadystatechange = function() {
+    if (this.readyState == 4 && this.status == 200) {
+      element.style.color = null;
+    }
+  };
+  xhr.open("GET", "/saveall", true);
+  xhr.send();
+}
 console.log("done setuping");
 </script>
 </html>
@@ -289,8 +362,12 @@ String processor(const String& var){
       "<br>Light S2: "+String(lights_s2_pwms[NLIGHTS-1])+" | "+String(state_s2_len_mins)+" mins"+
       "<br>Linear Temp Offset: "+String(linear_temp_offset)+"&deg;"+
       "<br>Drying: P "+String(fan_period_mins)+" mins | "+String(time_on_mins)+" mins ON"+
-      "<br>WiFi: "+ssid+" | "+password+
       "<br>"+server_started_at+
+      "<br>";
+    return text;
+  } else if(var == "INFOCONN") {
+    String text = "WiFi: "+ssid+" | "+password+
+      "<br>Log to Cloud: " + String(logToCloudFlag) + " @ " + serverName + " (key: "+ apiKeyValue +")"+
       "<br>";
     return text;
   }
@@ -461,6 +538,18 @@ void setupServer(){
           msg = "lightState2_red_val: "+String(inputCfgValInt);
         } else
           msg = "Invalid Input! :(";
+      } else if (inputCfgSel == "logcloudflag"){
+        if(is_int){
+          setLogCloudFlag(inputCfgValInt);
+          msg = "logcloudflag: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if (inputCfgSel == "logcloudurl"){
+        setLogServerURL(inputCfgVal);
+        msg = "logcloudurl: " + inputCfgVal;
+      } else if (inputCfgSel == "logcloudapikey"){
+        setLogServerAPIkey(inputCfgVal);
+        msg = "logcloudapikey: " + inputCfgVal;
       } else if(inputCfgSel == "cmd"){
         if(inputCfgVal == "resetprefs"){
           clearPrefs();
@@ -475,6 +564,22 @@ void setupServer(){
     }
     Serial.println(msg);
     request->send(200, "text/plain", msg.c_str());
+  });
+  // save all
+  server.on("/saveall", HTTP_GET, [](AsyncWebServerRequest *request){
+    saveLightModes();
+    request->send(200, "text/plain", "OK");
+  });
+  // favicon
+  // https://github.com/me-no-dev/ESPAsyncWebServer#send-binary-content-from-progmem
+  // Convert to favicon and gzip it:  https://www.favicon-generator.org/
+  // convert to binary via terminal: xxd -i favicon.ico.gz
+  server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request){
+    //Serial.println("favicon.ico");
+
+    AsyncWebServerResponse *response = request->beginResponse_P(200, "image/x-icon", favicon_ico_gz, favicon_ico_gz_len);
+    response->addHeader("Content-Encoding", "gzip");
+    request->send(response);
   });
   // Start server
   server.begin();

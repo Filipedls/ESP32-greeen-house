@@ -1,6 +1,8 @@
 // TODO clean up pre-stage vars
 // - state 2 (red mode) vars should be part of light stage - BUG: photo mode at 00:01 is red!
+// - auto dim light, if bellow 20 is auto, eg 2 is 2C above set fan temp; 0 turn it off?
 
+// TODO remove non obvious savelightmodes
 int selectedStage = 0;
 
 int min_light_val = 10;

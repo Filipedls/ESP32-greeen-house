@@ -198,6 +198,7 @@ int getTempConfigN(){
   return selTempCfg;
 }
 
+// TODO MV out of the fan file?!
 int getAvgLightPower(){
   pwmValsInfo pwmInfo = getPwmVals();
   

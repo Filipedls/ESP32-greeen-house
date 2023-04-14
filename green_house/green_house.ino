@@ -1,5 +1,11 @@
+// TODO refactor: 
+//   * pick a syntax
+//   * start from lower complexity, 01_... til 03_... (so that less complex changes propagate to more complex)
+//   * add top secttion with main comments and ideas implemented
+//   * add a 00_config file
+
 #define ELEMENTS(x)   (sizeof(x) / sizeof(x[0]))
-//jj
+
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);
@@ -10,10 +16,11 @@ void setup(){
   setupDHT();
   setupWiFi();
   setupTime(); // needs setupWiFi
-  //setupLogs();
+  setupLogs();
   setupStages(); // needs setupTime; runs setupEEPROM (make to run any read after)
   setupFan(); 
   setupServer(); // needs setupTime, setupStages
+  
   // wait 3s for the temp sensor
   delay(3000);
 }
@@ -35,10 +42,6 @@ void loop(){
     int fan_speed = updateFanSpeed(temp);
     updateTempHumidAvg(temp, humid); 
         
-//    if(i==1){
-//      getResetTemperatureHumidityAvg(&temp, &humid);
-//      Serial.println("Avg temp/humid avg - "+String(temp)+" / "+String(humid));
-//    }
     if(i==1){
       int avg_light_power = getAvgLightPower();
       logTempHumidToGS(true, fan_speed, avg_light_power);

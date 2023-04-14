@@ -2,11 +2,12 @@
 #include <DHT.h>
 
 #define DHTPIN 25     // Digital pin connected to the DHT sensor
-#define NTRIES 10      // number of tries in case of a failed measure
+#define NTRIES 10      // number of reads in case of a failed measure
+#define DELAYTRIES 20  // delay between reads in ms
    
 // Uncomment the type of sensor in use:
-#define DHTTYPE    DHT11     // DHT 11
-//#define DHTTYPE    DHT22     // DHT 22 (AM2302)
+//#define DHTTYPE    DHT11     // DHT 11
+#define DHTTYPE    DHT22     // DHT 22 (AM2302)
 //#define DHTTYPE    DHT21     // DHT 21 (AM2301)
 
 DHT dht(DHTPIN, DHTTYPE);
@@ -22,7 +23,7 @@ float readDHTTemperature() {
     if (!isnan(t)) {
       return t;
     }
-    delay(5);
+    delay(DELAYTRIES);
   }     
   Serial.println("Failed to read temp from DHT sensor!");
   return t;
@@ -37,7 +38,7 @@ float readDHTHumidity() {
     if (!isnan(h)) {
       return h;
     }
-    delay(5);
+    delay(DELAYTRIES);
   }
   Serial.println("Failed to read humidity from DHT sensor!");
   return h;
@@ -64,7 +65,7 @@ void readDHTTemperatureHumidity(float * rt, float * rh) {
       *rh = h;
       return;
     }
-    delay(5);
+    delay(DELAYTRIES);
   }
   Serial.println("Failed to read humidity from DHT sensor!");
   return;

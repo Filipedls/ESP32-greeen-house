@@ -1,3 +1,7 @@
+// TODO
+//   * generalize get, sets (class for ints and strings? with get, set, key, etc)
+//   * grow and connect config arrays
+
 // include library to read and write from flash memory
 #include <Preferences.h>
 
@@ -162,7 +166,7 @@ void setWiFiPass(String val){
 // WiFi IP
 const char* wifiip_key = "wifiip";
 String getWiFiIP(){
-  return prefs.getString(wifiip_key, "192.168.0.230");
+  return prefs.getString(wifiip_key, "192.168.1.231");
 }
 void setWiFiIP(String val){
   prefs.putString(wifiip_key, val);
@@ -170,18 +174,48 @@ void setWiFiIP(String val){
 // WiFi gateway
 const char* wifigateway_key = "wifigw";
 String getWiFigateway(){
-  return prefs.getString(wifigateway_key, "192.168.0.1");
+  return prefs.getString(wifigateway_key, "192.168.1.1");
 }
 void setWiFigateway(String val){
   prefs.putString(wifigateway_key, val);
 }
+
+// ==> Other Configs (not related with growing)
+// Log to the cloud
+const char* logcloudflag_key = "logcloudflag";
+int getLogCloudFlag(){
+  return prefs.getInt(logcloudflag_key, 0);
+}
+void setMemLogCloudFlag(int val){
+  prefs.putInt(logcloudflag_key, val);
+}
+
+// Log Server URL
+const char* logserverurl_key = "logurl";
+String getLogServerURL(){
+  return prefs.getString(logserverurl_key, "http://logstuff.com");
+}
+void setLogServerURL(String val){
+  prefs.putString(logserverurl_key, val);
+}
+
+// Log Server API key
+const char* logServerAPIkey_key = "logkey";
+String getLogServerAPIkey(){
+  return prefs.getString(logServerAPIkey_key, "yekIPA");
+}
+void setLogServerAPIkey(String val){
+  prefs.putString(logServerAPIkey_key, val);
+}
+
 
 void clearPrefs(){
   prefs.clear();
 }
 
 void checkBootButtonClearPrefs(){
-  // if boot button is pressed after the setup delay() call (~3s after boot), the preferences will be cleared. Restart again for it to have effect.
+  //delay(100);
+  // if boot button is pressed after the setup delay() call, the preferences will be cleared. Restart again for it to have effect.
   int boot_button_reading = digitalRead(0); // BOOT button's pin number is 0
   if (boot_button_reading == LOW) { // default state is HIGH
     Serial.println("BOOT button is pressed on setup, clearing preferences and restarting!");
@@ -199,6 +233,5 @@ void setupEEPROM(){
   prefs.begin("greenkea", false);
   // boot button as input to clear preferences
   pinMode(0, INPUT);
-  delay(100);
   checkBootButtonClearPrefs();
 }

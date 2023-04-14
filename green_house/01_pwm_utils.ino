@@ -7,7 +7,7 @@ const int resolution = 8;
 #define NPWMS (NLIGHTS + NFANS)
 
 int pwmChannels[NPWMS] = {0, 1, 2, 3, 4, 5};
-int pwmPins[NPWMS] = {19, 2, 4, 5, 18, 23};
+int pwmPins[NPWMS] = {2, 4, 5, 18, 19, 23};
 // others: 15, 27, 19, 21
 int pwmVals[NPWMS] = {0, 0, 0, 0, 0, 0};
 
@@ -18,6 +18,44 @@ const int freq_lights = 300;
 // https://www.mikrocontroller.net/attachment/361299/noctua_nf_a14_industrialPPC_3000_pwm_specs_en.pdf
 const int freq_fans = 10000;
 
+/*/ TODO
+int pwmChannelFan = 5;
+int pwmPinFan = 23;
+int pwmValFan = 0;
+
+// 
+struct pwmPin {
+    const char pwmName[2] = "";
+    int channel;
+    int pin; // board's physical pin number
+    int freq;
+    int val;
+};
+
+pwmPin all_pwm_pins[NSTAGES] {
+  { // Right light
+    "R",
+    // chn, pin, init val
+    0,2,freq_lights,0
+  },  
+  { // Right light
+    "L",
+    // chn, pin, init val
+    1,4,freq_lights,0
+  },  
+  { // Front light
+    "L",
+    // chn, pin, init val
+    1,4,freq_lights,0
+  },  
+  { // Right light
+    "L",
+    // chn, pin, init val
+    1,4,freq_lights,0
+  }
+}
+
+*/
 
 void PinSetup(int freq, int channel, int pin) {
   // configure PWM functionalitites

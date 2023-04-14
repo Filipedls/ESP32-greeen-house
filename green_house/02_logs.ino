@@ -1,65 +1,9 @@
-//#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
+// TODO log buffer, for when it fails
 
-//
-////  google sheets macro URL
-//const char* google_sheets_url = "https://script.google.com/macros/s/AKfycbxBkJ0qJlmY2SeqlwSqxfXrToO65Y4RTOIG3It-T8s_fPFxz1zygQgOa4kw85bzvm3t/exec";
+#include <WiFi.h>
+#include <HTTPClient.h>
+//#include <WiFiClientSecure.h>
 
-// openssl s_client -showcerts -connect script.google.com:443
-// Certificate chain 1
-//const char* root_ca= \
-//"-----BEGIN CERTIFICATE-----\n" \
-//"MIIES...1yg==\n" \
-//"-----END CERTIFICATE-----";
-//
-//void logToGS() {
-//    HTTPClient http;
-//    String URL = String(google_sheets_url);
-//
-//    Serial.print("[HTTP] begin...");
-//    //Serial.println(URL);
-//    // access to your Google Sheets
-//    // configure target server and url
-//    http.begin(URL, root_ca);
-//
-//    Serial.print(" GET...");
-//    // start connection and send HTTP header
-//    int httpCode = http.GET();
-//
-//    // httpCode will be negative on error
-//    if(httpCode > 0) {
-//        // HTTP header has been send and Server response header has been handled
-//        Serial.print(" code: ");
-//        Serial.println(httpCode);
-//
-////        // file found at server
-////        if(httpCode == HTTP_CODE_OK) {
-////            String payload = http.getString();
-////            Serial.println(payload);
-////        }
-//    } else {
-//        Serial.print(" failed, error: ");
-//        Serial.println(http.errorToString(httpCode).c_str());
-//    }
-//    http.end();
-//}
-//
-
-
-const char* host = "script.google.com";
-const char* google_sheets_url = "/macros/s/AKfycbxBkJ0qJlmY2SeqlwSqxfXrToO65Y4RTOIG3It-T8s_fPFxz1zygQgOa4kw85bzvm3t/exec";
-
-const uint16_t httpsPort = 443;
-
-//WiFiClientSecure client;
-//// needs wifi and time
-//void setupLogs() {
-//  // Load root certificate in DER format into WiFiClientSecure object
-//  //client.setCACert(root_ca);
-//
-//  client.setTimeout(20000);
-//  client.setInsecure();
-//}
 
 String convertToUrlStringParams(String keys[], String vals[], size_t nElems){
   String kv_string = "";
@@ -72,51 +16,6 @@ String convertToUrlStringParams(String keys[], String vals[], size_t nElems){
   }
   return kv_string;
 }
-
-void logToGS(String params_string) {
-  
-  Serial.print("[HTTPS] start...");
-
-  WiFiClientSecure client;
-
-  client.setTimeout(20000);
-  client.setInsecure();
-  
-  String url = String(google_sheets_url) + "?" + params_string;
-
-  // Connect to remote server
-  Serial.print("connecting to ");
-  Serial.print(host);
-  if (!client.connect(host, httpsPort)) {
-    Serial.println(" connection failed!");
-    return;
-  }
-  
-  //Serial.println(url);
-
-  client.print(String("GET https://") + host + url + " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" +
-               "User-Agent: ESP32\r\n" +
-               "Connection: close\r\n\r\n"); // keep-alive, close
-
-  Serial.print(" sent...");
-  while (client.connected()) {
-    String line = client.readStringUntil('\n');
-    if (line == "\r") {
-      Serial.print(" received");
-      break;
-    }
-  }
-  // if there are incoming bytes available
-  // from the server, read them and print them:
-//  while (client.available()) {
-//    char c = client.read();
-//    Serial.write(c);
-//  }
-  client.stop();
-  Serial.println(" done");
-}
-
 
 float sum_temp = 0.0;
 float sum_humid = 0.0;
@@ -144,17 +43,7 @@ void getResetTemperatureHumidityAvg(float * rt, float * rh) {
 }
 
 ///// SQL
-//
-//#include <MySQL_Connection.h>
-//#include <MySQL_Cursor.h>
-////#include <WiFi.h>
-////
-////const char* ssid = "your wifi name";
-////const char* password = "your wifi password";
-//
-//char userSQL[] = "root";//"root"; // MySQL user login username
-//char passwordSQL[] = ""; // MySQL user login password
-//
+
 //
 //// CREATE TABLE `ghouse`.`sensorvals` ( `datetime` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP , `temp` FLOAT NOT NULL , `humd` FLOAT NOT NULL , `fanspeed` SMALLINT NOT NULL );
 //
@@ -162,63 +51,14 @@ void getResetTemperatureHumidityAvg(float * rt, float * rh) {
 //
 //// INSERT INTO `ghouse`.`sensorvals` (`datetime`, `temp`, `humd`, `fanspeed`) VALUES ('2013-08-05 18:19:03', '25.6', '84.3', '125');
 //
-//char INSERT_SQL[] = "INSERT INTO `ghouse`.`sensorvals` (`datetime`, `temp`, `humd`, `fanspeed`) VALUES (current_timestamp(), '25.6', '84.3', '125');";
-//
-//IPAddress sql_server_addr(34,65,16,41);// your MySQL ip like (8, 8, 8, 8); // IP of the MySQL server here
-//
-//
-////WiFiServer  server(80);
-////void setup() {
-////  //Código de configuração aqui
-////  Serial.begin(115200);
-////
-////  connectToNetwork();
-////  mySqlLoop();
-////}
-////
-////void loop() {
-////}
-////void connectToNetwork() {
-////  WiFi.begin(ssid, password);
-//// 
-////  while (WiFi.status() != WL_CONNECTED) {
-////    delay(1000);
-////    Serial.println("Establishing connection to WiFi..");
-////  }
-//// 
-////  Serial.println("Connected to network");
-//// 
-////}
-//void mySqlLoop(){
-//  //WiFiClient client = getWiFiClient();
-//  WiFiClient client;
-//  MySQL_Connection conn((Client *)&client);
-//  if (conn.connect(sql_server_addr, 3306, userSQL, passwordSQL)) {
-//    Serial.println("Database connected.");
-//  }
-//  else{
-//    Serial.println("DB Connection failed!");
-//    //return;
-//  }
-//  // Initiate the query class instance
-//  MySQL_Cursor *cur_mem = new MySQL_Cursor(&conn);
-//  // Execute the query
-//  cur_mem->execute(INSERT_SQL);
-//  // Note: since there are no results, we do not need to read any data
-//  // Deleting the cursor also frees up memory used
-//  delete cur_mem;
-//  Serial.println("closing connection\n");
-//  //client.stop();
-//}
 
 // POST PHP
 
-#include <WiFi.h>
-#include <HTTPClient.h>
+// const char* serverName; // = "http://esp32gh.000webhostapp.com/post-esp-data.php";
 
-const char* serverName = "http://esp32gh.000webhostapp.com/post-esp-data.php";
+String serverName;
+String apiKeyValue; // = "Z2E58eFfzfBb";
 
-String apiKeyValue = "Z2E58eFfzfBb";
 
 void postdataphp(String params_string) {
   WiFiClient wifi_client;
@@ -227,7 +67,7 @@ void postdataphp(String params_string) {
   wifi_client.setTimeout(50000);
   
   // Your Domain name with URL path or IP address with path
-  http.begin(wifi_client, serverName);
+  http.begin(wifi_client, serverName.c_str() );
   
   // Specify content-type header
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -263,14 +103,25 @@ void postdataphp(String params_string) {
 }
 
 
+int logToCloudFlag;
+void setLogCloudFlag(int val){
+  logToCloudFlag = val;
+  setMemLogCloudFlag(val);
+}
+
 void logTempHumidToGS(bool get_avg, int fan_speed, int avg_light_power) {
-  
+
   float temperature = NAN;
   float humidity = NAN;
   if(get_avg){
     getResetTemperatureHumidityAvg(&temperature, &humidity);
   } else {
     readDHTTemperatureHumidity(&temperature, &humidity);
+  }
+
+  if(logToCloudFlag == 0){
+    Serial.println("Not logging to cloud. Avg temp/humid avg - "+String(temperature)+" / "+String(humidity));
+    return;
   }
   
 //  String names[2]  =  {"temp", "humid"};
@@ -286,4 +137,11 @@ void logTempHumidToGS(bool get_avg, int fan_speed, int avg_light_power) {
 
   String params_string = convertToUrlStringParams(names, vals, 4);
   postdataphp(params_string);
+}
+
+
+void setupLogs() {
+  logToCloudFlag = getLogCloudFlag();
+  serverName = getLogServerURL();
+  apiKeyValue = getLogServerAPIkey();
 }
