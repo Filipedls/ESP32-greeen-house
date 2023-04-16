@@ -7,7 +7,7 @@ if ( isset($_SESSION['loggedIn']) && $_SESSION['loggedIn'] == 1) {
     exit;
 }
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    If ( $_POST["pass"] == "stuff@123"){
+    If ( $_POST["pass"] == $_ENV['LOGIN_PASS']){
         $_SESSION['loggedIn'] = 1;
         header('Location: monitor.php');
         exit;

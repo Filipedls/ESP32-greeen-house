@@ -1,13 +1,13 @@
 <?php
 
-$servername = "db";
-$dbname = "esp32";
-$username = "user";
-$password = "test";
+$servername = $_ENV['MYSQL_SERVERNAME'];
+$dbname = $_ENV['MYSQL_DATABASE'];
+$username = $_ENV['MYSQL_USER'];
+$password = $_ENV['MYSQL_PASSWORD'];
 
 // Keep this API Key value to be compatible with the ESP32 code provided in the project code. 
 // If you change this value, the ESP32 sketch needs to match
-$api_key_value = "Z2E58eFfzfBb";
+$api_key_value = $_ENV['API_KEY'];
 
 $api_key= $temp_val = $humd_val = $fanspeed_val = "";
 

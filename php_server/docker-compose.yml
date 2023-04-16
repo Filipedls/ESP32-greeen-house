@@ -13,6 +13,14 @@ services:
             - db
         networks:
             - default
+        environment:
+            - MYSQL_USER=user
+            - MYSQL_PASSWORD=test
+            - MYSQL_SERVERNAME=db
+            - MYSQL_DATABASE=esp32
+            # WWW PHP VARS
+            - API_KEY=Z2E58eFfzfBb
+            - LOGIN_PASS=stuff@123
     db:
         image: mysql:8.0
         restart: always

@@ -7,10 +7,10 @@ if ( ! isset($_SESSION['loggedIn']) || $_SESSION['loggedIn'] == 0) {
     exit;
 }
 
-$servername = "db";
-$dbname = "esp32";
-$username = "user";
-$password = "test";
+$servername = $_ENV['MYSQL_SERVERNAME'];
+$dbname = $_ENV['MYSQL_DATABASE'];
+$username = $_ENV['MYSQL_USER'];
+$password = $_ENV['MYSQL_PASSWORD'];
 
 // Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);
