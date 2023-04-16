@@ -7,10 +7,10 @@ if ( ! isset($_SESSION['loggedIn']) || $_SESSION['loggedIn'] == 0) {
     exit;
 }
 
-$servername = "localhost";
-$dbname = "id17187452_esp32ghs";
-$username = "id17187452_esp32ghsun";
-$password = "";
+$servername = "db";
+$dbname = "esp32";
+$username = "user";
+$password = "test";
 
 // Create connection
 $conn = new mysqli($servername, $username, $password, $dbname);
@@ -52,6 +52,8 @@ $conn->close();
     <div id="fans_plot"></div>
     <br>
     <div id="light_plot"></div>
+    <br>
+    <div id="table_div"></div>
 </div>
 <script>
 // Access the array elements
@@ -87,7 +89,7 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
         type: 'scatter',
         marker: {
             color: color_val,
-            size: 5
+            size: 8
         },
         line: {
             color: color_val,
@@ -97,7 +99,7 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
     ];
     const layout = {
         title: title_val,
-        height: 380,
+        height: 320,
         margin: {
             l: 80,
             r: 50,
@@ -107,10 +109,12 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
         },
         xaxis: {
             //autorange: true,
-            range: [data_sensors['datetime'][10], data_sensors['datetime'][0]],
+            automargin: true,
+            range: [data_sensors['datetime'][70], data_sensors['datetime'][0]],
             //rangeslider: {range: [data_sensors['datetime'].slice(-1)[0], data_sensors['datetime'][0]]},
             type: 'date',
             nticks: 26,
+            //tickformat: '%d %b',
         },
         yaxis: {
           autorange: true,
@@ -123,7 +127,7 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
         },
     };
     if (isMobile){
-        data_plot[0].marker.size = 7;
+        data_plot[0].marker.size = 9;
         data_plot[0].line.width = 5;
         layout.font = {size: 28};
         layout.margin = {
@@ -133,7 +137,7 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
             t: 120,
             pad: 4
         };
-        layout.height = 530;
+        layout.height = 480;
         layout.xaxis.nticks = 13;
     }
     if(title_val == ''){
@@ -146,14 +150,26 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
         layout.xaxis.rangeselector = {
             buttons: [
                 {
+                  count: 8,
+                  label: '8h',
+                  step: 'hour',
+                  stepmode: 'backward'
+                },
+                {
                   count: 1,
                   label: '1d',
                   step: 'day',
                   stepmode: 'backward'
                 },
                 {
-                  count: 5,
-                  label: '5d',
+                  count: 3,
+                  label: '3d',
+                  step: 'day',
+                  stepmode: 'backward'
+                },
+                {
+                  count: 7,
+                  label: '7d',
                   step: 'day',
                   stepmode: 'backward'
                 },
@@ -175,7 +191,50 @@ function newScatterPlot(data_col, color_val, title_val, yaxis_title, ticksuffix_
 newScatterPlot('temp', 'orange', 'Temp & Humid', 'Temperature','°C', 'temp_plot', true);
 newScatterPlot('humd', 'blue', '', 'Humidity','%', 'humd_plot', false);
 newScatterPlot('fanspeed', 'green', 'Fan Speed', '0-255','', 'fans_plot', true);
-newScatterPlot('avglight', 'red', 'Avg Light', '0-255','', 'light_plot', true);
+newScatterPlot('avglight', 'red', 'Avg Light', '0-255','', 'light_plot', false);
+
+var col_names = []; // [["<b>EXPENSES</b>"], 
+var data_values = [];
+Object.entries(data_sensors).forEach(([key, value]) => {
+    col_names.push([key]);
+    data_values.push(value);
+});
+
+//data_values_T = data_values[0].map((_, colIndex) => data_values.map(row => row[colIndex]));
+
+var datetime_arr = data_sensors['datetime'];
+var cells_fill = ['white'];
+for (let i = 0; i < datetime_arr.length-1; i++) {
+    var time_diff = (new Date(datetime_arr[i])-new Date(datetime_arr[i+1]))/(1000*60); // ms to mins
+    //console.log(time_diff, datetime_arr[i], datetime_arr[i+1])
+    if (time_diff < 25 ) {
+        cells_fill.push('white');
+    } else {
+        cells_fill.push('lightyellow');
+    }
+}
+
+var data_tb = [{
+  type: 'table',
+  header: {
+    values: col_names,
+    align: "center",
+    //line: {width: 1, color: 'black'},
+    fill: {color: "grey"},
+    //font: {family: "Arial", size: 12, color: "white"}
+  },
+  cells: {
+    values: data_values,
+    align: "center",
+    //line: {color: "black", width: 1},
+    //font: {family: "Arial", size: 11, color: ["black"]}
+    fill: {
+        color: [cells_fill,'white', 'white','white', 'white']
+    },
+  }
+}];
+
+Plotly.newPlot('table_div', data_tb);
 
 
     // var config_plot = {responsive: true};

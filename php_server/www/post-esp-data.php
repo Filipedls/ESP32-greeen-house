@@ -1,11 +1,9 @@
 <?php
 
-$servername = "localhost";
-
-
-$dbname = "id17187452_esp32ghs";
-$username = "id17187452_esp32ghsun";
-$password = "g~#Do(%eVIkyM$9^";
+$servername = "db";
+$dbname = "esp32";
+$username = "user";
+$password = "test";
 
 // Keep this API Key value to be compatible with the ESP32 code provided in the project code. 
 // If you change this value, the ESP32 sketch needs to match

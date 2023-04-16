@@ -1,0 +1,42 @@
+version: "3.6"
+services:
+    www:
+        build: .
+        # image: esp32www:lastest # uncomment for portainer, and comment the build
+        restart: always
+        ports:
+            - "8080:80"
+        volumes:
+            - ./www:/var/www/html
+#            - ./log:/var/log/apache2
+        links:
+            - db
+        networks:
+            - default
+    db:
+        image: mysql:8.0
+        restart: always
+        ports:
+            - "3306:3306"
+        environment:
+            - MYSQL_DATABASE=esp32
+            - MYSQL_USER=user
+            - MYSQL_PASSWORD=test
+            - MYSQL_ROOT_PASSWORD=test
+        volumes:
+            - ./initdb:/docker-entrypoint-initdb.d
+            #- ./conf:/etc/mysql/conf.d
+            - ./mysql:/var/lib/mysql
+        networks:
+            - default
+    phpmyadmin:
+        image: phpmyadmin:5.2
+        links: 
+            - db:db
+        restart: always
+        ports:
+            - 8081:80
+        environment:
+            MYSQL_USER: user
+            MYSQL_PASSWORD: test
+            MYSQL_ROOT_PASSWORD: test
