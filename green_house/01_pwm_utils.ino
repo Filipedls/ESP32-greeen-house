@@ -71,7 +71,7 @@ void PinWrite(int channel, int dutyCycle) {
 
 // server methods
 struct pwmValsInfo {
-    const char pwmNames[NPWMS][2] = {"R", "L", "F", "B", "r", "f"};
+    const char pwmNames[NPWMS][2] = {"L", "R", "u", "r", "i", "f"};
     int vals[NPWMS];
     size_t lenght;
 };
@@ -97,6 +97,18 @@ void setPwmVals(const int vals[]){
   for(int i=0; i<NPWMS;i++){
     setPwmVal(i, vals[i]);
   }
+}
+
+
+int getAvgLightPower(){
+  pwmValsInfo pwmInfo = getPwmVals();
+  
+  int lightPowerAvg = 0;
+  for(int i=0; i<NLIGHTS;i++){
+    lightPowerAvg += pwmInfo.vals[i];
+  }
+  lightPowerAvg = lightPowerAvg/NLIGHTS;
+  return lightPowerAvg;
 }
 
 void  setupPWM(){

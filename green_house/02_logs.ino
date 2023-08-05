@@ -1,4 +1,6 @@
 // TODO log buffer, for when it fails
+// * log interval config
+// * On, Off, watering, other (with text field), etc events log
 
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -140,8 +142,18 @@ void logTempHumidToGS(bool get_avg, int fan_speed, int avg_light_power) {
 }
 
 
+int log_period_mins; 
+void setLogPeriodMins(int val){
+  setMemLogPeriodMins(val);
+  log_period_mins = val;
+}
+int getLogPeriodMinsVar(){
+  return log_period_mins;
+}
+
 void setupLogs() {
   logToCloudFlag = getLogCloudFlag();
   serverName = getLogServerURL();
   apiKeyValue = getLogServerAPIkey();
+  log_period_mins = getLogPeriodMins();
 }

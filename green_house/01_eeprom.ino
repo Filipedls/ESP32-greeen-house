@@ -7,6 +7,34 @@
 
 Preferences prefs;
 
+// AUX
+void setArray(void * obj, int  size_obj, const char* key){
+  // e.g.: 
+  // const char* key = "key1";
+  // int array[SIZE] = {1};
+  // setArray(array, sizeof(array), key);
+
+  //prefs.putBytes(lights_key, vals, n_vals*sizeof(int));
+  prefs.putBytes(key, obj, size_obj);
+  //Serial.println("setStruct: size is "+String(size_obj));
+}
+void getArray(void * object, size_t sizeof_object, const char* key){
+  // e.g.: 
+  // const char* key = "key1";
+  // int array[SIZE] = {1};
+  // getArray(array, sizeof(array), key);
+
+  size_t schLen = prefs.getBytes(key, NULL, NULL);
+  //Serial.println("getStruct: size is "+String(schLen)+" "+String(sizeof_object));
+  if(schLen == 0 || schLen != sizeof_object)
+    return;
+  
+    //Serial.println("getArray > "+String(schLen) );
+  char cbuffer[schLen]; // prepare a buffer for the data
+  prefs.getBytes(key, cbuffer, schLen);
+  memcpy(object, cbuffer, schLen);
+}
+
 // ==> LIGHTS
 // Stage
 const char* sel_stage_key = "selstg";
@@ -19,19 +47,23 @@ void setMemStageVal(unsigned int stageVal){
 
 const char* light_modes_key = "lightm";
 void setMemLightModes(void * obj, int  size_obj){
-  //prefs.putBytes(lights_key, vals, n_vals*sizeof(int));
-  prefs.putBytes(light_modes_key, obj, size_obj);
+  // // prefs.putBytes(lights_key, vals, n_vals*sizeof(int));
+  //prefs.putBytes(light_modes_key, obj, size_obj);
   //Serial.println("setStruct: size is "+String(size_obj));
+  
+  setArray(obj, size_obj, light_modes_key);
 }
 void getMemLightModes(void * object, size_t sizeof_object){
-  size_t schLen = prefs.getBytes(light_modes_key, NULL, NULL);
-  //Serial.println("getStruct: size is "+String(schLen)+" "+String(sizeof_object));
-  if(schLen == 0 || schLen != sizeof_object)
-    return;
+  // size_t schLen = prefs.getBytes(light_modes_key, NULL, NULL);
+  // //Serial.println("getStruct: size is "+String(schLen)+" "+String(sizeof_object));
+  // if(schLen == 0 || schLen != sizeof_object)
+  //   return;
     
-  char cbuffer[schLen]; // prepare a buffer for the data
-  prefs.getBytes(light_modes_key, cbuffer, schLen);
-  memcpy(object, cbuffer, schLen);
+  // char cbuffer[schLen]; // prepare a buffer for the data
+  // prefs.getBytes(light_modes_key, cbuffer, schLen);
+  // memcpy(object, cbuffer, schLen);
+
+  getArray(object, sizeof_object, light_modes_key);
 }
 
 // Light off temp
@@ -59,6 +91,28 @@ int getMemState2LenMins(){
 }
 void setMemState2LenMins(int len_mins){
   prefs.putInt(state_2_len_mins_key, len_mins);
+}
+
+// Dim priority
+const char* dim_prio_key = "dimp";
+void setMemDimPrioArr(void * obj, int  size_obj){
+  // //prefs.putBytes(lights_key, vals, n_vals*sizeof(int));
+  //prefs.putBytes(dim_prio_key, obj, size_obj);
+  //Serial.println("setStruct: size is "+String(size_obj));
+
+  setArray(obj, size_obj, dim_prio_key);
+}
+void getMemDimPrioArr(void * object, size_t sizeof_object){
+  // size_t schLen = prefs.getBytes(dim_prio_key, NULL, NULL);
+  // //Serial.println("getStruct: size is "+String(schLen)+" "+String(sizeof_object));
+  // if(schLen == 0 || schLen != sizeof_object)
+  //   return;
+    
+  // char cbuffer[schLen]; // prepare a buffer for the data
+  // prefs.getBytes(dim_prio_key, cbuffer, schLen);
+  // memcpy(object, cbuffer, schLen);
+
+  getArray(object, sizeof_object, dim_prio_key);
 }
 
 // ==> FAN
@@ -91,10 +145,10 @@ void setFanMinSpeed(int num){
 
 // Fan max speed
 const char* fan_max_speed_key = "fanmaxspd";
-int getFanMaxSpeed(){
+int getMemFanMaxSpeed(){
   return prefs.getInt(fan_max_speed_key, 0);
 }
-void setFanMaxSpeed(int num){
+void setMemFanMaxSpeed(int num){
   prefs.putInt(fan_max_speed_key, num);
 }
 
@@ -125,6 +179,15 @@ void setMemFanPeriodMins(int num){
   prefs.putInt(fan_period_mins_key, num);
 }
 
+// Fan drying mode max_humidity
+const char* fan_dry_humd_key = "fandryhumd";
+int getFanDryMaxHumid(){
+  return prefs.getInt(fan_dry_humd_key, 70);
+}
+void setMemFanDryMaxHumid(int num){
+  prefs.putInt(fan_dry_humd_key, num);
+}
+
 // Fan linear_temp_offset
 const char* linear_temp_offset_key = "fanltoset";
 int getMemLinearTempOffset(){
@@ -141,6 +204,23 @@ int getStartDimTempMem(){
 }
 void setStartDimTempMem(int num){
   prefs.putInt(start_dim_temp_key, num);
+}
+
+// mins silent
+const char* mins_silent_key = "fanminsil";
+int getMemMinsSilent(){
+  return prefs.getInt(mins_silent_key, 5);
+}
+void setMemMinsSilent(int num){
+  prefs.putInt(mins_silent_key, num);
+}
+// silent_fan_speed
+const char* silent_fan_speed_key = "silfanspeed";
+int getMemSilFanSpeed(){
+  return prefs.getInt(silent_fan_speed_key, 120);
+}
+void setMemSilFanSpeed(int num){
+  prefs.putInt(silent_fan_speed_key, num);
 }
 
 // ==> WiFi
@@ -208,7 +288,14 @@ void setLogServerAPIkey(String val){
   prefs.putString(logServerAPIkey_key, val);
 }
 
-
+// Log period
+const char* log_period_mins_key = "logperiod";
+int getLogPeriodMins(){
+  return prefs.getInt(log_period_mins_key, 20);
+}
+void setMemLogPeriodMins(int val){
+  prefs.putInt(log_period_mins_key, val);
+}
 void clearPrefs(){
   prefs.clear();
 }

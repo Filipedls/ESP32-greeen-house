@@ -122,9 +122,12 @@ const char index_html[] PROGMEM = R"rawliteral(
   <p><label class="switch">
   <input type="checkbox" onclick="checklock(this)" id="lockcheckbox">
   <span class="slider"></span>
-  </label> <i class="fa fa-floppy-o" aria-hidden="true" onclick="saveAll(this)"></i></p>
+  </label> <i class="fa fa-floppy-o" aria-hidden="true" onclick="callUrl(this, '/saveall')"></i></p>
   <h4>Lights</h4>
-  %SLIDERSPLACEHOLDER%
+  %LIGHTSLIDERSPH%
+  <h4>Fan</h4>
+  <i class="fa fa-volume-down" aria-hidden="true" style="font-size: 15pt;color:#444444;" onclick="callUrl(this, '/silfan')"></i>
+  %FANSLIDERSPH%
   <h4>Modes</h4>
   <h5>light mode: %DROPDOWNPLACEHOLDER%</h5>
   %HOURONOFF%
@@ -141,12 +144,15 @@ const char index_html[] PROGMEM = R"rawliteral(
         <option value="minfanspeed">Min Fan Speed</option>
         <option value="maxfanspeed">Max Fan Speed</option>
         <option value="lintemposet">Linear Temp Offset</option>
+        <option value="fansilmins">Fan Silent Mins</option>
+        <option value="fansilspeed">Fan Silent Speed</option>
         <option value="startdimtemp">Start Dim Temp</option>
         <option value="lightofftemp">Lights Off Temp</option>
         <option value="lightS2lmins">Lights S2 Len mins</option>
         <option value="lightS2redv">Lights S2 Red PWM</option>
         <option value="timeonmins">Drying Time ON Mins</option>
         <option value="fanpermins">Drying Period mins</option>
+        <option value="drymaxhumid">Drying Max Humidity</option>
       </select>
       <input type="text" name="cfgval">
       <input type="reset" value="Set" onclick="document.forms['cfgformgrow'].submit();">
@@ -163,6 +169,7 @@ const char index_html[] PROGMEM = R"rawliteral(
           <option value="logcloudflag">Log to Cloud flag</option>
           <option value="logcloudurl">Log Server URL</option>
           <option value="logcloudapikey">Log Server API key</option>
+          <option value="logperiodmins">Log Period Mins</option>
           <option value="cmd">cmd</option>
         </select>
         <input type="text" name="cfgval">
@@ -222,12 +229,12 @@ function updateSensorsSliders(elem) {
         document.getElementById("textSliderValueLight"+id_vals[0]).innerHTML = id_vals[1];
         document.getElementById("pwmSlider"+id_vals[0]).value = id_vals[1];
       }
-      if(elem != undefined){elem.style.backgroundColor = null;}
+      if(elem != undefined){elem.style.color = null;}
     }
   };
   xhttp.open("GET", "/getsenslivals", true);
   xhttp.send();
-  if(elem != undefined){elem.style.backgroundColor = "red";}
+  if(elem != undefined){elem.style.color = "red";}
 
 }
 function buttonRestart(elem) {
@@ -270,7 +277,7 @@ function checklock(elem) {
   }
 }
 checklock(document.getElementById("lockcheckbox"));
-function saveAll(element) {
+function callUrl(element, url) {
   element.style.color = "red";
   var xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function() {
@@ -278,7 +285,7 @@ function saveAll(element) {
       element.style.color = null;
     }
   };
-  xhr.open("GET", "/saveall", true);
+  xhr.open("GET", url, true);
   xhr.send();
 }
 console.log("done setuping");
@@ -294,19 +301,24 @@ String processor(const String& var){
   }
   else if(var == "HUMIDITY"){
     return String(readDHTHumidity());
-  } else if (var == "SLIDERSPLACEHOLDER"){
+  } else if (var == "LIGHTSLIDERSPH"){
     String buttons ="";
-    String slide_step = String(15);
     pwmValsInfo sliderInfo = getPwmVals();
-    for(int i=0; i < sliderInfo.lenght; i++){
+    for(int i=0; i < NLIGHTS; i++){
       String sliderVal = String(sliderInfo.vals[i]);
-      if(i == sliderInfo.lenght-NFANS){
-        buttons+="<h4>Fan</h4>";
-        slide_step=String(5);
-      }
       buttons+= "<h5>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
       "')\" oninput=\"onslideSliderPWM(this, '" + String(i) + "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
-      "\" step=\""+slide_step+"\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h5>";
+      "\" step=\"15\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h5>";
+    }
+    return buttons;
+  } else if (var == "FANSLIDERSPH"){
+    String buttons ="";
+    pwmValsInfo sliderInfo = getPwmVals();
+    for(int i=NLIGHTS; i < sliderInfo.lenght; i++){
+      String sliderVal = String(sliderInfo.vals[i]);
+      buttons+= "<h5>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
+      "')\" oninput=\"onslideSliderPWM(this, '" + String(i) + "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
+      "\" step=\"5\" class=\"sliderlight\"><span id=\"textSliderValueLight"+ String(i) +"\">"+sliderVal+"</span></h5>";
     }
     return buttons;
   } else if (var == "DATETIME"){
@@ -356,18 +368,23 @@ String processor(const String& var){
     text += "</span>";
     return text;
   } else if(var == "INFO") {
-    String text = "Lights Off at: "+String(max_temp_lights)+"&deg;C<br>"+
-      "fan speed (min-max): "+String(min_fan_speed)+"-"+String(max_fan_speed)+
+    String dim_prio_str = String("");
+    for(int i=0; i<NLIGHTS;i++){
+      dim_prio_str += String(dim_priority_arr[i])+String(" ");
+    }
+    String text = "Lights Off at: "+String(max_temp_lights)+"&deg;C"+
+      "<br>Fan: speed "+String(min_fan_speed)+"-"+String(max_fan_speed)+" S "+String(mins_silent)+" mins"+
       "<br>Start Dim: "+String(start_dim_temp)+"&deg;C"+" | ratio: "+String(dim_ratio)+
+      "<br>Dim Prio: "+dim_prio_str+
       "<br>Light S2: "+String(lights_s2_pwms[NLIGHTS-1])+" | "+String(state_s2_len_mins)+" mins"+
       "<br>Linear Temp Offset: "+String(linear_temp_offset)+"&deg;"+
-      "<br>Drying: P "+String(fan_period_mins)+" mins | "+String(time_on_mins)+" mins ON"+
+      "<br>Drying: P "+String(fan_period_mins)+" mins | "+String(time_on_mins)+" mins ON"+" | "+String(dry_max_humid)+"% max H"+
       "<br>"+server_started_at+
       "<br>";
     return text;
   } else if(var == "INFOCONN") {
     String text = "WiFi: "+ssid+" | "+password+
-      "<br>Log to Cloud: " + String(logToCloudFlag) + " @ " + serverName + " (key: "+ apiKeyValue +")"+
+      "<br>Log to Cloud: " + String(logToCloudFlag) + " @ " + serverName + " (key: "+ apiKeyValue +") | "+String(log_period_mins)+" P mins"+
       "<br>";
     return text;
   }
@@ -486,7 +503,7 @@ void setupServer(){
           msg = "Invalid Input! :(";
       } else if (inputCfgSel == "maxfanspeed"){
         if(is_int){
-          setMaxFanSpeed(inputCfgValInt);
+          manuallySetMaxFanSpeed(inputCfgValInt);
           msg = "maxfanspeed: "+String(inputCfgValInt);
         } else
           msg = "Invalid Input! :(";
@@ -502,6 +519,24 @@ void setupServer(){
           msg = "lightofftemp: "+String(inputCfgValInt);
         } else
           msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "lintemposet"){
+        if(is_int){
+          setLinearTempOffset(inputCfgValInt);
+          msg = "lintemposet: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "fansilmins"){
+        if(is_int){
+          setFanMinsSilent(inputCfgValInt);
+          msg = "fansilmins: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "fansilspeed"){
+        if(is_int){
+          setFanSilFanSpeed(inputCfgValInt);
+          msg = "fansilspeed: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
       } else if(inputCfgSel == "wifiip"){
         setWiFiIP(inputCfgVal);
         msg = "setcfg > wifiIP :" + inputCfgVal;
@@ -514,16 +549,16 @@ void setupServer(){
           msg = "perctimeon: "+String(inputCfgValInt);
         } else
           msg = "Invalid Input! :(";
-      } else if(inputCfgSel == "lintemposet"){
-        if(is_int){
-          setLinearTempOffset(inputCfgValInt);
-          msg = "lintemposet: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
       } else if(inputCfgSel == "fanpermins"){
         if(is_int){
           setFanPeriodMins(inputCfgValInt);
           msg = "fan_period_mins: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
+      } else if(inputCfgSel == "drymaxhumid"){
+        if(is_int){
+          setFanDryMaxHumid(inputCfgValInt);
+          msg = "drymaxhumid: "+String(inputCfgValInt);
         } else
           msg = "Invalid Input! :(";
       } else if(inputCfgSel == "lightS2lmins"){
@@ -550,12 +585,36 @@ void setupServer(){
       } else if (inputCfgSel == "logcloudapikey"){
         setLogServerAPIkey(inputCfgVal);
         msg = "logcloudapikey: " + inputCfgVal;
+      } else if (inputCfgSel == "logperiodmins"){
+        if(is_int){
+          setLogPeriodMins(inputCfgValInt);
+          msg = "logperiodmins: "+String(inputCfgValInt);
+        } else
+          msg = "Invalid Input! :(";
       } else if(inputCfgSel == "cmd"){
-        if(inputCfgVal == "resetprefs"){
+        if(inputCfgVal.length() == 10 && inputCfgVal == "resetprefs"){
           clearPrefs();
           msg = "cmd resetprefs > done :)";
+        } else if (inputCfgVal.length() > 8 && inputCfgVal.substring(0,8) == "sdimprio") {
+          //const char * input = inputCfgVal.substring(9,20).c_str();
+          char input[11];
+          inputCfgVal.substring(9,20).toCharArray(input, 11);
+          char* command = strtok(input, " ");
+          int n_vals = 0;
+          int dim_priority_arr_new[NLIGHTS] = {1};
+          while (command != 0)
+          { 
+            //Serial.println("sdp while > " + String(command));
+            if(n_vals == NLIGHTS) break;
+            dim_priority_arr_new[n_vals] = atoi(command);
+            n_vals++;
+            command = strtok(0, " ");
+          }
+          setDimPrio(dim_priority_arr_new);
+          msg = "cmd sdimprio > done :)";
         } else
           msg = "cmd > unknown cmd! :( " + inputCfgVal;
+      
       } else
         msg = "setcfg > unknown config: " + inputCfgVal;
     }
@@ -568,6 +627,11 @@ void setupServer(){
   // save all
   server.on("/saveall", HTTP_GET, [](AsyncWebServerRequest *request){
     saveLightModes();
+    request->send(200, "text/plain", "OK");
+  });
+  // save all
+  server.on("/silfan", HTTP_GET, [](AsyncWebServerRequest *request){
+    startFanSilentMode();
     request->send(200, "text/plain", "OK");
   });
   // favicon

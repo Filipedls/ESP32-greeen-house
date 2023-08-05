@@ -39,15 +39,20 @@ void loop(){
     readDHTTemperatureHumidity(&temp, &humid);
     
     updateStage(temp);
-    int fan_speed = updateFanSpeed(temp);
+    int fan_speed = updateFanSpeed(temp, humid);
     updateTempHumidAvg(temp, humid); 
+
+    // TODO move out of for
+    int log_period = getLogPeriodMinsVar();
+    int min_in_period = getMinIn(log_period);//log_period_mins);
         
-    if(i==1){
+    if(min_in_period==0){
+      //Serial.println(">> log_period_mins: "+String(log_period)+"  min_in: "+String(min_in_period));
       int avg_light_power = getAvgLightPower();
       logTempHumidToGS(true, fan_speed, avg_light_power);
     }
 
-    while (millis() <= previousMillis + interval);
+    while (millis() <= previousMillis + interval + 1);
     //Serial.println("LOOP! Passed: "+String(millis()-startMillis)+" ms");
   }
 }

@@ -42,7 +42,7 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
 
 void WiFiStationDisconnected( WiFiEvent_t event, WiFiEventInfo_t info ){
   Serial.print("conn lost: ");
-  Serial.print(info.disconnected.reason);
+  Serial.print(info.wifi_sta_disconnected.reason);
   Serial.print(" _ ");
 
   //WiFi.disconnect();
@@ -90,8 +90,20 @@ void setupWiFi(){
   //delay(1000);
 
   //WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
-  WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
-  WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
+  //WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
+  //WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
+
+  WiFi.onEvent(WiFiGotIP, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_GOT_IP);
+  // WiFiEventId_t eventID = WiFi.onEvent(
+  //   [](WiFiEvent_t event, WiFiEventInfo_t info){
+  //       Serial.print("WiFi lost connection. Reason: ");
+  //       Serial.println(info.wifi_sta_disconnected.reason);
+  //       WiFi.disconnect();
+  //       WiFi.reconnect();
+  //   }, 
+  //   WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED
+  // );
+  WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   
   connectWiFi();
   while (WiFi.status() != WL_CONNECTED){

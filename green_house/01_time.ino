@@ -71,6 +71,46 @@ String getDateTime(bool format_for_sql){
   return String(dateTime);
 }
 
+// Gets the number of mins into a certain period_mins (size of the period in mins, should be divisible by 24h)
+int getMinIn(int period_mins){
+  int hour, mins;
+  getHourMin(&hour, &mins);
+  // the minute of the the 24h day
+  int mins_day = hour * 60 + mins;
+  
+  int min_in = mins_day % period_mins;
+
+  return min_in;
+}
+
+// TIMERS
+// The ESP32 has 4 independent timers, selected by an id between 0 and 3. 
+// Then we select the prescaler to apply to the timer clock signal. 
+// On the ESP32, this is the APB_CLK clock, clocked at 80 MHz.
+
+hw_timer_t * setupTimer(uint8_t timer, void (*fn)(void)){
+
+  hw_timer_t * hw_timer = NULL;
+  // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535
+  // num: select timer number.
+  // divider: select timer divider. Sets how quickly the timer counter is “ticking”.
+  // countUp: select timer direction. Sets if the counter should be incrementing or decrementing.
+  hw_timer = timerBegin(timer, 8000, true);
+  timerAttachInterrupt(hw_timer, fn, true);
+
+  return hw_timer;
+}
+
+void triggerTimer(hw_timer_t * hw_timer, int n_mins, bool autoreload){
+  // triggers the timer in n_mins mins
+  // autoreload: repeats the timer, every n_mins
+
+  timerAlarmDisable(hw_timer);
+  timerRestart(hw_timer);
+  timerAlarmWrite(hw_timer, n_mins*600000, autoreload);
+  timerAlarmEnable(hw_timer);
+}
+
 void setupTime() {
   //before  do: initWiFi();
   configTime(0, 0, ntpServer);

@@ -1,6 +1,8 @@
 // TODO clean up pre-stage vars
 // - state 2 (red mode) vars should be part of light stage - BUG: photo mode at 00:01 is red!
 // - auto dim light, if bellow 20 is auto, eg 2 is 2C above set fan temp; 0 turn it off?
+// - temporary silent mode, fan and light at 80% for 2h? also silent daily time?
+// - auto daily light linear adjust. start and end light + days to transition (with a start date)
 
 // TODO remove non obvious savelightmodes
 int selectedStage = 0;
@@ -82,9 +84,10 @@ StageCfg all_modes[NSTAGES] {
 int state_s2_len_mins;// = 15;
 int lights_s2_pwms[NLIGHTS] = {0};
 
-
 // The temp at which we start to dim the lights
 int start_dim_temp;// = 30;
+
+int dim_priority_arr[NLIGHTS] = {1,1,1,1,1};
 
 /// Methods
 int StateNum = 0;
@@ -131,6 +134,12 @@ void restoreLightVars(){
 
   state_s2_len_mins = getMemState2LenMins();
   lights_s2_pwms[NLIGHTS-1] = getMemState2RedVal();
+
+  getMemDimPrioArr(dim_priority_arr, sizeof(dim_priority_arr));
+  // TODORM
+  // for(int i=0; i<NLIGHTS;i++){
+  //   Serial.println(String(i)+" restoreLightVars > "+String(dim_priority_arr[i]));
+  // }
 }
 
 void saveLightModes(){
@@ -206,10 +215,14 @@ hw_timer_t * timer_open_door = NULL;
 int timer_prev_sel_stage = -1;
 void startOpenDoorTimer(int prev_stage){
   // (re)start alarm to startAutoFan in 20 mins
-  timerAlarmDisable(timer_open_door);
-  timerRestart(timer_open_door);
-  timerAlarmWrite(timer_open_door, 20*600000, false);
-  timerAlarmEnable(timer_open_door);
+  // timerAlarmDisable(timer_open_door);
+  // timerRestart(timer_open_door);
+  // timerAlarmWrite(timer_open_door, 20*600000, false);
+  // timerAlarmEnable(timer_open_door);
+
+  // TODO change to 20
+  triggerTimer(timer_open_door, 1, false);
+  Serial.println("startOpenDoorTimer > timer started");
   
   timer_prev_sel_stage = prev_stage;
 }
@@ -229,6 +242,14 @@ void IRAM_ATTR stopOpenDoorTimer(){
 float temp_tol = 0.5;
 float tdim_kP = 0.03;
 
+void setDimPrio(const int vals[]){
+  for(int i=0; i<NLIGHTS;i++){
+    dim_priority_arr[i] = vals[i];
+    //Serial.println(String(i)+" setDimPrio > "+String(vals[i]));
+  }
+  setMemDimPrioArr(dim_priority_arr, sizeof(dim_priority_arr));
+}
+
 void checkTempToDimLights(struct StageCfg stage, float temperature){
   
   float temp_err = temperature - start_dim_temp;
@@ -242,11 +263,89 @@ void checkTempToDimLights(struct StageCfg stage, float temperature){
   }
   //Serial.println("diming lights > dim_ratio " + String(dim_ratio));
     
-  // only sets the lights, fan is independently controled
+  // // only sets the lights, fan is independently controled
+  // for(int i=0; i<NLIGHTS;i++){
+  //   if(stage.pwmVals[i] > 0)
+  //     setPwmLightVal(i, int(dim_ratio*stage.pwmVals[i]));
+  // }
+
+  /////
+  float pri_2_sum_light = 0;
+  //int pri_2_c = 0;
+  float pri_0_sum_light = 0;
+  //int pri_0_c = 0;
   for(int i=0; i<NLIGHTS;i++){
-    if(stage.pwmVals[i] > 0)
-      setPwmLightVal(i, int(dim_ratio*stage.pwmVals[i]));
+    if(dim_priority_arr[i] == 2){
+      pri_2_sum_light += stage.pwmVals[i];
+      //pri_2_c++;
+    } else if(dim_priority_arr[i] == 0){
+      pri_0_sum_light += stage.pwmVals[i];
+      //pri_0_c++;
+    } 
   }
+  // if(pri_2_c > 0)
+  //   pri_2_sum_light = pri_2_sum_light/pri_2_c;
+
+  // if(pri_0_c > 0)
+  //   pri_0_sum_light = pri_0_sum_light/pri_0_c;
+
+  float dim_ratio_split = 0.5;
+  if(pri_0_sum_light > 0 || pri_2_sum_light > 0)
+    dim_ratio_split = pri_0_sum_light/(pri_0_sum_light+pri_2_sum_light);
+
+  
+  // Serial.println("diming lights > pri_0_avg_light " + String(pri_0_avg_light)
+  // +" > pri_2_avg_light " + String(pri_2_avg_light)
+  // +" > dim_ratio_split " + String(dim_ratio_split)
+  // );
+
+  // float map_dim_ratio;
+  // if(dim_ratio >= dim_ratio_split){
+  //   // diming 1st diming lights
+  //   map_dim_ratio = (dim_ratio-dim_ratio_split)/(1.0-dim_ratio_split);
+  //   for(int i=0; i<NLIGHTS;i++){
+  //     if(stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 2) )
+  //       setPwmLightVal(i, int(map_dim_ratio*stage.pwmVals[i]));
+  //   }
+  // } else {
+  //   // diming the rest of the lights
+  //   map_dim_ratio = dim_ratio/dim_ratio_split;
+  //   for(int i=0; i<NLIGHTS;i++){
+  //     if(stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 0) )
+  //       setPwmLightVal(i, int(map_dim_ratio*stage.pwmVals[i]));
+  //     else if (stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 2) )
+  //       setPwmLightVal(i, 0);
+  //   }
+  // }
+  // for(int i=0; i<NLIGHTS;i++){
+  //   if(stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 1) )
+  //     setPwmLightVal(i, int(dim_ratio*stage.pwmVals[i]));
+  // }
+  ///// OR
+  pwmValsInfo pwmInfo = getPwmVals();
+  float map_dim_ratio_ab = max(double(0.0), (dim_ratio-dim_ratio_split)/(1.0-dim_ratio_split) );
+  float map_dim_ratio_bl = min(float(1.0), dim_ratio/dim_ratio_split );
+
+  //Serial.println("diming lights > map_dim_ratio_ab " + String(map_dim_ratio_ab)+" > map_dim_ratio_bl " + String(map_dim_ratio_bl));
+  for(int i=0; i<NLIGHTS;i++){
+    if(stage.pwmVals[i] > 0){
+      int light_val = -1;
+      if(dim_priority_arr[i] == 1){
+        light_val = int(dim_ratio*stage.pwmVals[i]);
+      } else if(dim_priority_arr[i] == 2){
+        if (dim_ratio >= dim_ratio_split)
+          light_val = int(map_dim_ratio_ab*stage.pwmVals[i]);
+        else
+          light_val = 0;
+      } else if(dim_priority_arr[i] == 0 && dim_ratio < dim_ratio_split ) {
+        light_val = int(map_dim_ratio_bl*stage.pwmVals[i]);
+      }
+      //Serial.println( String(i)+"diming lights > " + String(light_val));
+      if((light_val != -1) && (light_val != pwmInfo.vals[i]))
+        setPwmLightVal(i, light_val);
+    }
+  }
+
 }
 
 void setStartDimTemp(int new_val){
@@ -401,8 +500,10 @@ void setupStages(){
   restoreLightVars();
 
   // Setting a timer to use in startAutoFan()
-  timer_open_door = timerBegin(1, 8000, true);
-  timerAttachInterrupt(timer_open_door, &stopOpenDoorTimer, true);
+  // timer_open_door = timerBegin(1, 8000, true);
+  // timerAttachInterrupt(timer_open_door, &stopOpenDoorTimer, true);
+
+  timer_open_door = setupTimer(1, &stopOpenDoorTimer);
 
 //  // Setting a timer to run updateStage()
 //  // prescaler 8000 - 10KHz base signal (base freq is 80 MHz) uint16 65,535

@@ -1,3 +1,6 @@
+// TODO Drying Mode, fan goes on if humidity above X, off if bellow
+// * AUTO temp humid  control, have a max humid and temp, where if  above fan goes up, til back normal
+// * global temp config temps_cfg
 
 enum FanModeID {
     LINEAR, PID, AVGLIGHT, DRYING, OFF  
@@ -22,7 +25,7 @@ int min_fan_speed;
 // bellow this speed the fan stops
 #define ABS_MIN_FAN_SPEED 35
 // bellow this speed the fan doesn't start
-#define MIN_FAN_START_SPEED 65
+#define MIN_FAN_START_SPEED 70
 
 // for noise reason the temp control will keep the fan speed at max_fan_speed
 int max_fan_speed = int(MAX_PWM_FAN);
@@ -87,18 +90,40 @@ void setMainFanPwm(int val){
     // starts the at max speed for 100ms, to make sure the fan starts
     if(main_fan_speed == 0 && val < MIN_FAN_START_SPEED){
       setPwmVal(NLIGHTS, int(MAX_PWM_FAN));
-      delay(300);
+      delay(750);
     }
     main_fan_speed = val;
     setPwmVal(NLIGHTS, val);
   }
 }
 
+void setMaxFanSpeed(int val){
+  max_fan_speed = checkMaxFanSpeed(val);
+  setMemFanMaxSpeed(max_fan_speed);
+  //Serial.println("setMaxFanSpeed: max fan speed to " + String(max_fan_speed) );
+  float temp = NAN;
+  float humid = NAN;
+  readDHTTemperatureHumidity(&temp, &humid);
+  updateFanSpeed(temp, humid);
+}
+
+int silent_mode_prev_max_fan_speed;
+void manuallySetMaxFanSpeed(int val){
+  setMaxFanSpeed(val);
+  silent_mode_prev_max_fan_speed = val;
+}
+
 int prev_main_fan_speed; // used for processDryingMode()
 void manuallySetMainFanPwm(int val){
-  setMemFanManualSpeed(val);
-  prev_main_fan_speed = val;
-  setMainFanPwm(val);
+  TempCfg temps_cfg = * all_temp_configs[selTempCfg];
+  if(temps_cfg.fan_mode == PID || temps_cfg.fan_mode == LINEAR || temps_cfg.fan_mode == AVGLIGHT){
+    manuallySetMaxFanSpeed(val);
+  } else {
+    setMemFanManualSpeed(val);
+    // when we manually change the speed, we want the fan to return to that value
+    prev_main_fan_speed = val;
+    setMainFanPwm(val);
+  }
 }
 
 // min and max fan speed are only applied to auto fan speed modes
@@ -109,17 +134,15 @@ void setMinFanSpeed(int val){
   min_fan_speed = checkMinFanSpeed(val);
   setFanMinSpeed(min_fan_speed);
   Serial.println("setting min fan speed to" + String(min_fan_speed) );
+  float temp = NAN;
+  float humid = NAN;
+  readDHTTemperatureHumidity(&temp, &humid);
+  updateFanSpeed(temp, humid);
 }
 
 int checkMaxFanSpeed(int val){
   return max(min(val, int(MAX_PWM_FAN)), min_fan_speed);
 }
-void setMaxFanSpeed(int val){
-  max_fan_speed = checkMaxFanSpeed(val);
-  setFanMaxSpeed(max_fan_speed);
-  Serial.println("setting max fan speed to" + String(max_fan_speed) );
-}
-
 
 void restoreFanMode(){
   int main_fan_goal_temp_mem = getMemFanModeTemp();
@@ -140,8 +163,10 @@ void setMainFanGoalTemp(int main_fan_goal_temp_new_val){
     // corrects the diff error
     prev_err = prev_err - (main_fan_goal_temp_new_val-main_fan_goal_temp);
     setLinearTempConfig(main_fan_goal_temp_new_val);
-    float temperature = readDHTTemperature();
-    updateFanSpeed(temperature);
+    float temp = NAN;
+    float humid = NAN;
+    readDHTTemperatureHumidity(&temp, &humid);
+    updateFanSpeed(temp, humid);
     
     setMemFanModeTemp(main_fan_goal_temp_new_val);
   }
@@ -189,25 +214,15 @@ void setTempConfig(int tempConfigN){
   //    timer_is_ON = false;
   //  }
     setMemFanModeNum(selTempCfg);
-    float temperature = readDHTTemperature();
-    updateFanSpeed(temperature);
+    float temp = NAN;
+    float humid = NAN;
+    readDHTTemperatureHumidity(&temp, &humid);
+    updateFanSpeed(temp, humid);
   }
 }
 
 int getTempConfigN(){
   return selTempCfg;
-}
-
-// TODO MV out of the fan file?!
-int getAvgLightPower(){
-  pwmValsInfo pwmInfo = getPwmVals();
-  
-  int lightPowerAvg = 0;
-  for(int i=0; i<NLIGHTS;i++){
-    lightPowerAvg += pwmInfo.vals[i];
-  }
-  lightPowerAvg = lightPowerAvg/NLIGHTS;
-  return lightPowerAvg;
 }
 
 // PID fan control
@@ -255,8 +270,7 @@ int setPIDfanSpeed(float temp, float lightPowerRatio){
   return speed_val;
 }
 
-// AUTO temp humid  control
-// have a max humid and temp, where if  above fan goes up, til back normal
+
 int getLinearTempSpeed(struct TempCfg temps_cfg, float temperature){
   int pwmVal;
   // bellow min temp
@@ -290,20 +304,24 @@ int getLinearTempSpeed(struct TempCfg temps_cfg, float temperature){
 float time_on_mins;
 int fan_period_mins;// = 10;
 int dry_prev_state = -1;
-void processDryingMode(){
+// Drying's Mode max humidity, after that fan goes on
+int dry_max_humid;
+void setFanDryMaxHumid(int val){
+  setMemFanDryMaxHumid(val);
+  dry_max_humid = val;
+}
 
-  int hour, mins;
-  getHourMin(&hour, &mins);
-  // the minute of the the 24h day
-  int mins_day = hour * 60 + mins;
+void processDryingMode(float humidity){
   
-  int min_rest = mins_day % fan_period_mins;
-  
-  if(min_rest < time_on_mins && dry_prev_state != 1){
+  int min_rest = getMinIn(fan_period_mins);
+
+  // || humidity ... cause we want the fan to go on if humidity > DRY_HUMID_MAX
+  if((min_rest < time_on_mins || humidity > float(dry_max_humid)) && dry_prev_state != 1){
     // fan is on
     dry_prev_state = 1;
     setMainFanPwm(prev_main_fan_speed);
-  } else if(min_rest >= time_on_mins && dry_prev_state != 0){
+  // && humidity ... cause we dont want the fan to go off if min_rest < time_on_mins
+  } else if((min_rest >= time_on_mins && humidity < float(dry_max_humid)) && dry_prev_state != 0){
     // fan is off
     dry_prev_state = 0;
     prev_main_fan_speed = main_fan_speed;
@@ -331,7 +349,7 @@ void setTimeOnMins(int val_mins){
 
 
 int n_times_temp_nan = 0;
-int updateFanSpeed(float temperature){
+int updateFanSpeed(float temperature, float humidity){
 //  if(timer_is_ON){
 //    //Serial.println("temp timer_is_ON! nothing done");
 //    return;
@@ -376,7 +394,7 @@ int updateFanSpeed(float temperature){
     fan_speed = max(min(max_fan_speed,fan_speed), min_fan_speed);
     setMainFanPwm(fan_speed);
   } else if(temps_cfg.fan_mode == DRYING){
-    processDryingMode();  
+    processDryingMode(humidity);  
     prev_cycle_was_PID = false;  
   } else {
     prev_cycle_was_PID = false;  
@@ -384,11 +402,39 @@ int updateFanSpeed(float temperature){
   return main_fan_speed;
 }
 
+// SILENT FAN
+// Temperarly reduce fan speed
+hw_timer_t * timer_silent_mode = NULL;
+
+int silent_fan_speed;
+void IRAM_ATTR stopFanSilentMode(){
+  setMaxFanSpeed(silent_mode_prev_max_fan_speed);
+}
+
+int mins_silent;
+void startFanSilentMode(){
+  
+  triggerTimer(timer_silent_mode, mins_silent, false);
+  Serial.println("startSilentMode > timer started");
+  
+  silent_mode_prev_max_fan_speed = max_fan_speed;
+  setMaxFanSpeed(silent_fan_speed);
+}
+
+void setFanMinsSilent(int val){
+  mins_silent = val;
+  setMemMinsSilent(val);
+}
+void setFanSilFanSpeed(int val){
+  silent_fan_speed = val;
+  setMemSilFanSpeed(val);
+}
+
 void setupFan(){
   linear_temp_offset = getMemLinearTempOffset();
   restoreFanMode();
   min_fan_speed = getFanMinSpeed();
-  max_fan_speed = getFanMaxSpeed();
+  max_fan_speed = getMemFanMaxSpeed();
   if (max_fan_speed == 0)
     max_fan_speed = MAX_PWM_FAN;
 
@@ -397,9 +443,16 @@ void setupFan(){
   time_on_mins = getMemFanDryTimeOnMins();
   fan_period_mins = getMemFanPeriodMins();
 
+  dry_max_humid = getFanDryMaxHumid();
+
+  mins_silent = getMemMinsSilent();
+  silent_fan_speed = getMemSilFanSpeed();
+
 //  // Setting a timer to use in startAutoFan()
 //  timer_fan = timerBegin(1, 8000, true);
 //  timerAttachInterrupt(timer_fan, &startAutoFan, true);
   
   setMainFanPwm(prev_main_fan_speed);
+
+  timer_silent_mode = setupTimer(0, &stopFanSilentMode);
 }
