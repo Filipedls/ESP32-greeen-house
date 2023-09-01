@@ -1,0 +1,16 @@
+# IDE Arduino IDE 2.1.1
+# BOARD
+ESP32 Dev Module (in 'Boards Manager' install esp32 by espressif systems - https://github.com/espressif/arduino-esp32)
+# LIBS
+Adafruit Unified Sensor 1.1.11  https://github.com/adafruit/Adafruit_Sensor
+DHT 1.4.4. sensor library  https://github.com/adafruit/DHT-sensor-library
+AsyncTCP 1.1.4  https://github.com/dvarrel/AsyncTCP
+ESPAsyncWebServer 1.2.6  https://github.com/me-no-dev/ESPAsyncWebServer ('Download ZIP' from GitHub, then 'Add ZZIP Library...' In Arduino IDE)
+ESPAsyncTCP 1.2.4  https://github.com/dvarrel/ESPAsyncTCP
+
+# Arduino IDE paths
+https://support.arduino.cc/hc/en-us/articles/4415103213714-Find-sketches-libraries-board-cores-and-other-files-on-your-computer#boards
+## Libs
+/Users/filipe.silva/Library/Arduino15/packages/esp32/hardware/esp32/2.0.11/libraries
+/Users/{username}/Library/Arduino15
+/Users/filipe.silva/Library/Arduino15/libraries

@@ -2,9 +2,9 @@
 // TOCHANGE
 //   * create lights and fan section with the respective info
 //   * hide sliders
-//   * change buttons to icons
 //   * add a middle div around the controls with a different color (vertical style)
-//   * 
+//   * generalize the processor() method. eg: a class to render sliders, dropdown's, etc
+//   * cmd to change light stage name; and add/remove stages?
 
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -31,6 +31,9 @@ const char* PARAM_INPUT_CFGSEL = "cfgsel";
 const char* PARAM_INPUT_CFGVAL = "cfgval";
 
 String server_started_at;
+
+String off_color = "#444444";
+String on_color  = "#059e8a";
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -92,7 +95,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     input[type=range] { background-color: lightgray; width: min(50vw, 220px); }
     select:disabled { -webkit-text-fill-color: black; }
     h2 { font-size: 2.0rem; }
-    h4 {margin-block: 1.0em;}
+    h4 {margin-block: 1.4em; background: rgb(197, 197, 197); border-radius: 8px; margin-inline: 20px;}
+    summary {background: rgb(197, 197, 197); border-radius: 8px; margin-inline: 20px; font-weight: bold; margin-block: 0.5em;}
     h5 {margin-block: 1.3em;}
     p { font-size: 1.4rem; }
     .units { font-size: 1.2rem; }
@@ -101,43 +105,42 @@ const char index_html[] PROGMEM = R"rawliteral(
       vertical-align:middle;
       padding-bottom: 15px;
     }
-    .switch {position: relative; display: inline-block; width: 40px; height: 20px} 
-    .switch input {display: none}
     .slider {position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #888; border-radius: 34px}
     .slider:before {position: absolute; content: ""; height: 14px; width: 14px; left: 4px; bottom: 3px; background-color: #fff; -webkit-transition: .4s; transition: .4s; border-radius: 68px}
     input:checked+.slider {background-color: #2196F3}
     input:checked+.slider:before {-webkit-transform: translateX(18px); -ms-transform: translateX(18px); transform: translateX(18px)}
   </style>
 </head>
-<body>
+<body style="width: min(90vw, 350px); margin-left: auto; margin-right:auto;">
   <h3>Greenkea</h3>
   <p>
     <i class="fa fa-thermometer-half" style="color:#059e8a;"></i> 
-    <span id="temperature">%TEMPERATURE%</span><sup class="units">&deg;C</sup> 
+    <span id="temperature">%TEMPERATURE%</span><sup class="units">&deg;C</sup>&nbsp;
     <i class="fa fa-tint" style="color:#00add6;"></i> 
     <span id="humidity">%HUMIDITY%</span><sup class="units">&percnt;</sup>
-    <i class="fa fa-refresh" aria-hidden="true" style="color:#444444;" onclick="updateSensorsSliders(this)"></i>
   </p>
-  <h6 style="margin-block:1.33em;">%DATETIME%</h6>
-  <p><label class="switch">
-  <input type="checkbox" onclick="checklock(this)" id="lockcheckbox">
-  <span class="slider"></span>
-  </label> <i class="fa fa-floppy-o" aria-hidden="true" onclick="callUrl(this, '/saveall')"></i></p>
-  <h4>Lights</h4>
+  <p>
+  <i class="fa fa-refresh" aria-hidden="true" style="color:#444444;" onclick="updateSensorsSliders(this)"></i>
+  &nbsp;&nbsp;&nbsp;
+  <i class="fa fa-unlock" aria-hidden="true" onclick="checklock(this)" id="lockid"></i>
+  </p>
+  <h4>Lights &nbsp;
+  <i class="fa fa-floppy-o clickdis" aria-hidden="true" onclick="callUrl(this, '/saveall')"></i> &nbsp;
+  <i class="fa fa-lightbulb-o clickdis" aria-hidden="true" style="font-size: 15pt;color:%LIGHTDIM%;" onclick="callUrl(this, '/dimonoff')"></i> &nbsp;
+  <i class="fa fa-clock-o clickdis" aria-hidden="true" style="font-size: 15pt;color:%LSTARTEND%;" onclick="callUrl(this, '/starendonoff')"></i> 
+  </h4>
   %LIGHTSLIDERSPH%
-  <h4>Fan</h4>
-  <i class="fa fa-volume-down" aria-hidden="true" style="font-size: 15pt;color:#444444;" onclick="callUrl(this, '/silfan')"></i>
+  <h5>mode: %DROPDOWNPLACEHOLDER%</h5>
+  <h4>Fan &nbsp;
+  <i class="fa fa-volume-down clickdis" aria-hidden="true" style="font-size: 15pt;color:%FANSILSTATE%;" onclick="callUrl(this, '/silfan')"></i></h4>
   %FANSLIDERSPH%
-  <h4>Modes</h4>
-  <h5>light mode: %DROPDOWNPLACEHOLDER%</h5>
-  %HOURONOFF%
-  <h5>fan mode: %DROPDOWNFANPLACEHOLDER%</h5>
   %FANTEMPOFFSET%
+  <h5>mode: %DROPDOWNFANPLACEHOLDER%</h5>
+  <h4>Schedule</h4>
+  %HOURONOFF%
   %WARNS%
-  <br>
   <details>
-    <summary>Info&amp;Config</summary>
-    <br>
+    <summary>Info &amp; Config</summary>
     %INFO%
     <form action="/setcfg" name="cfgformgrow" target="formtarget">
       <select id="cfgselgrow" name="cfgsel">
@@ -148,13 +151,11 @@ const char index_html[] PROGMEM = R"rawliteral(
         <option value="fansilspeed">Fan Silent Speed</option>
         <option value="startdimtemp">Start Dim Temp</option>
         <option value="lightofftemp">Lights Off Temp</option>
-        <option value="lightS2lmins">Lights S2 Len mins</option>
-        <option value="lightS2redv">Lights S2 Red PWM</option>
         <option value="timeonmins">Drying Time ON Mins</option>
         <option value="fanpermins">Drying Period mins</option>
         <option value="drymaxhumid">Drying Max Humidity</option>
       </select>
-      <input type="text" name="cfgval">
+      <input type="text" name="cfgval" style="width: 90px;">
       <input type="reset" value="Set" onclick="document.forms['cfgformgrow'].submit();">
     </form>
     <details>
@@ -162,15 +163,15 @@ const char index_html[] PROGMEM = R"rawliteral(
       %INFOCONN%
       <form action="/setcfg" name="cfgform" target="formtarget">
         <select id="cfgsel" name="cfgsel">
+          <option value="cmd">cmd</option>
           <option value="wifissid">WiFi SSID</option>
           <option value="wifipass">WiFi Pass</option>
           <option value="wifiip">WiFi IP</option>
           <option value="wifigw">WiFi Gateway</option>
-          <option value="logcloudflag">Log to Cloud flag</option>
-          <option value="logcloudurl">Log Server URL</option>
-          <option value="logcloudapikey">Log Server API key</option>
-          <option value="logperiodmins">Log Period Mins</option>
-          <option value="cmd">cmd</option>
+          <option value="logcloudflag">Enable Log</option>
+          <option value="logcloudurl">Log URL</option>
+          <option value="logcloudapikey">Log API key</option>
+          <option value="logperiodmins">Log Period</option>
         </select>
         <input type="text" name="cfgval">
         <input type="reset" value="Set" onclick="document.forms['cfgform'].submit();">
@@ -178,8 +179,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     </details>
     <iframe name="formtarget" id="formtarget" style="height: 21pt;"></iframe>
     <br>
-    <button type="button" onclick="buttonRestart(this)">Restart ESP</button>
+    <i class="fa fa-power-off" aria-hidden="true" style="font-size: 20pt;color:#444444;" onclick="buttonRestart(this)"></i>
   </details>
+  <h6 style="margin-block:1.33em;">%DATETIME%</h6>
 </body>
 <script>
 function onslideSliderPWM(element, slider_id) {
@@ -239,16 +241,17 @@ function updateSensorsSliders(elem) {
 }
 function buttonRestart(elem) {
   if (confirm("/!\ Gonna Reboot!!! :O")) {
-    elem.style.backgroundColor = "red";
+    var prev_color = elem.style.color;
+    elem.style.color = "red";
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function() {
       if (this.readyState == 4 && this.status == 200) {
         console.log("restarted");
-        elem.style.backgroundColor = "green";
+        elem.style.color = "green";
         var xhral = new XMLHttpRequest();
         xhral.onreadystatechange = function() {
           if (this.readyState == 4 && this.status == 200) {
-            elem.style.backgroundColor = null;
+            elem.style.color = prev_color;
             clearInterval(tmr);
           }
         };
@@ -263,21 +266,26 @@ function buttonRestart(elem) {
   }
 }
 function checklock(elem) {
-  //var inputs = document.getElementsByTagName("input");
   var inputs = Array.from(document.getElementsByTagName('input'))
-            .concat(Array.from(document.getElementsByTagName('select')));
+            .concat(Array.from(document.getElementsByTagName('select') ))
+            .concat(Array.from(document.getElementsByClassName('clickdis') ));
   var next_state = true;
-  if(elem.checked){
+  if(elem.classList.contains("fa-lock")){
     next_state = false;
+    elem.classList.remove("fa-lock");
+    elem.classList.add("fa-unlock");
+  } else {
+    elem.classList.remove("fa-unlock");
+    elem.classList.add("fa-lock");
   }
   for (var i = 0; i < inputs.length; i++) {
-    if (inputs[i].id !== 'lockcheckbox') {
-      inputs[i].disabled = next_state;
-    }
+    inputs[i].disabled = next_state;
   }
 }
-checklock(document.getElementById("lockcheckbox"));
+checklock(document.getElementById("lockid"));
 function callUrl(element, url) {
+  if (element.classList.contains("clickdis") 
+  && document.getElementById("lockid").classList.contains("fa-lock") ) { return false; }
   element.style.color = "red";
   var xhr = new XMLHttpRequest();
   xhr.onreadystatechange = function() {
@@ -297,10 +305,13 @@ console.log("done setuping");
 String processor(const String& var){
   //Serial.println("processor "+var);
   if(var == "TEMPERATURE"){
-    return String(readDHTTemperature());
+    // float t = NAN;
+    // readDHTTemperatureHumidity(&t, &h);
+    // sprintf(slidarValsChar, "%.2f,%.2f", t,h);
+    return String(readDHTTemperature(), 1);
   }
   else if(var == "HUMIDITY"){
-    return String(readDHTHumidity());
+    return String(readDHTHumidity(), 1);
   } else if (var == "LIGHTSLIDERSPH"){
     String buttons ="";
     pwmValsInfo sliderInfo = getPwmVals();
@@ -314,7 +325,7 @@ String processor(const String& var){
   } else if (var == "FANSLIDERSPH"){
     String buttons ="";
     pwmValsInfo sliderInfo = getPwmVals();
-    for(int i=NLIGHTS; i < sliderInfo.lenght; i++){
+    for(int i=NLIGHTS; i<=NLIGHTS; i++){// sliderInfo.lenght; i++){ // only a single fan controled is supported!
       String sliderVal = String(sliderInfo.vals[i]);
       buttons+= "<h5>" + String(sliderInfo.pwmNames[i]) + ": <input type=\"range\" onchange=\"updateSliderPWM(this, '" + String(i) +
       "')\" oninput=\"onslideSliderPWM(this, '" + String(i) + "')\" id=\"pwmSlider" + String(i) +"\" min=\"0\" max=\"255\" value=\""+ sliderVal + 
@@ -368,24 +379,35 @@ String processor(const String& var){
     text += "</span>";
     return text;
   } else if(var == "INFO") {
-    String dim_prio_str = String("");
-    for(int i=0; i<NLIGHTS;i++){
-      dim_prio_str += String(dim_priority_arr[i])+String(" ");
-    }
-    String text = "Lights Off at: "+String(max_temp_lights)+"&deg;C"+
-      "<br>Fan: speed "+String(min_fan_speed)+"-"+String(max_fan_speed)+" S "+String(mins_silent)+" mins"+
-      "<br>Start Dim: "+String(start_dim_temp)+"&deg;C"+" | ratio: "+String(dim_ratio)+
-      "<br>Dim Prio: "+dim_prio_str+
-      "<br>Light S2: "+String(lights_s2_pwms[NLIGHTS-1])+" | "+String(state_s2_len_mins)+" mins"+
-      "<br>Linear Temp Offset: "+String(linear_temp_offset)+"&deg;"+
-      "<br>Drying: P "+String(fan_period_mins)+" mins | "+String(time_on_mins)+" mins ON"+" | "+String(dry_max_humid)+"% max H"+
+    int start_dim_temp_C = getStartDimTempInC();
+    String text = "Lights > Off "+String(max_temp_lights)+"&deg;C"+" | Dim "+String(start_dim_temp_C)+"&deg;C (v "+String(start_dim_temp)+") | r "+String(dim_ratio)+
+      //"<br>Light S2 > "+String(lights_s2_pwms[NLIGHTS-1])+" | "+String(state_s2_len_mins)+" mins"+
+      "<br>Fan > "+String(min_fan_speed)+"-"+String(max_fan_speed)+" | LTO "+String(linear_temp_offset)+"&deg; | Sil "+String(mins_silent)+"m @ "+String(silent_fan_speed)+
+      "<br>Drying > P "+String(fan_period_mins)+"m | "+String(time_on_mins)+"m ON"+" | "+String(dry_max_humid)+"&percnt; max H"+
       "<br>"+server_started_at+
       "<br>";
     return text;
   } else if(var == "INFOCONN") {
     String text = "WiFi: "+ssid+" | "+password+
-      "<br>Log to Cloud: " + String(logToCloudFlag) + " @ " + serverName + " (key: "+ apiKeyValue +") | "+String(log_period_mins)+" P mins"+
-      "<br>";
+      "<br>Log to Cloud: " + String(logToCloudFlag) + " @ " + serverName + " (key: "+ apiKeyValue +") | "+String(log_period_mins)+" P mins"+"<br>";
+    return text;
+  }else if(var == "FANSILSTATE") {
+    String text = off_color;
+    if(fan_sil_mode_is_on){
+      text = on_color;
+    }
+    return text;
+  } else if(var == "LIGHTDIM") {
+    String text = off_color;
+    if(getLightStageDim()){
+      text = on_color;
+    }
+    return text;
+  } else if(var == "LSTARTEND") {
+    String text = off_color;
+    if(getLightStageCheckStartEnd()){
+      text = on_color;
+    }
     return text;
   }
   return String();
@@ -411,7 +433,7 @@ void setupServer(){
     float t = NAN;
     float h = NAN;
     readDHTTemperatureHumidity(&t, &h);
-    sprintf(slidarValsChar, "%.2f,%.2f", t,h);
+    sprintf(slidarValsChar, "%.1f,%.1f", t,h);
     
     pwmValsInfo sliderInfo = getPwmVals();
     for(int i=0; i < sliderInfo.lenght; i++){
@@ -489,6 +511,8 @@ void setupServer(){
       inputCfgVal = request->getParam(PARAM_INPUT_CFGVAL)->value();
       bool is_int = inputCfgVal.toInt() != 0;
       int inputCfgValInt = inputCfgVal.toInt();
+
+      msg = "Invalid Input! :(";
       if(inputCfgSel == "wifissid") {
         setWiFiSSID(inputCfgVal);
         msg = "setcfg > wifissid :" + inputCfgVal;
@@ -499,44 +523,37 @@ void setupServer(){
         if(is_int){
           setMinFanSpeed(inputCfgValInt);
           msg = "minfanspeed: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if (inputCfgSel == "maxfanspeed"){
         if(is_int){
           manuallySetMaxFanSpeed(inputCfgValInt);
           msg = "maxfanspeed: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if (inputCfgSel == "startdimtemp"){
         if(is_int){
           setStartDimTemp(inputCfgValInt);
           msg = "startdimtemp: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if (inputCfgSel == "lightofftemp"){
         if(is_int){
           setLightsOffTemp(inputCfgValInt);
           msg = "lightofftemp: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if(inputCfgSel == "lintemposet"){
         if(is_int){
           setLinearTempOffset(inputCfgValInt);
           msg = "lintemposet: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if(inputCfgSel == "fansilmins"){
         if(is_int){
           setFanMinsSilent(inputCfgValInt);
           msg = "fansilmins: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if(inputCfgSel == "fansilspeed"){
         if(is_int){
           setFanSilFanSpeed(inputCfgValInt);
           msg = "fansilspeed: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if(inputCfgSel == "wifiip"){
         setWiFiIP(inputCfgVal);
         msg = "setcfg > wifiIP :" + inputCfgVal;
@@ -547,38 +564,35 @@ void setupServer(){
         if(is_int){
           setTimeOnMins(inputCfgValInt);
           msg = "perctimeon: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if(inputCfgSel == "fanpermins"){
         if(is_int){
           setFanPeriodMins(inputCfgValInt);
           msg = "fan_period_mins: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if(inputCfgSel == "drymaxhumid"){
         if(is_int){
           setFanDryMaxHumid(inputCfgValInt);
           msg = "drymaxhumid: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
-      } else if(inputCfgSel == "lightS2lmins"){
-        if(is_int){
-          setState2LenMins(inputCfgValInt);
-          msg = "lightState2_len_mins: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
-      } else if(inputCfgSel == "lightS2redv"){
-        if(is_int){
-          setState2RedVal(inputCfgValInt);
-          msg = "lightState2_red_val: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
-      } else if (inputCfgSel == "logcloudflag"){
+        }
+      } else 
+      // if(inputCfgSel == "lightS2lmins"){
+      //   if(is_int){
+      //     setState2LenMins(inputCfgValInt);
+      //     msg = "lightState2_len_mins: "+String(inputCfgValInt);
+      //   }
+      // } else 
+      // if(inputCfgSel == "lightS2redv"){
+      //   if(is_int){
+      //     setState2RedVal(inputCfgValInt);
+      //     msg = "lightState2_red_val: "+String(inputCfgValInt);
+      //   }
+      // } else 
+      if (inputCfgSel == "logcloudflag"){
         if(is_int){
           setLogCloudFlag(inputCfgValInt);
           msg = "logcloudflag: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
       } else if (inputCfgSel == "logcloudurl"){
         setLogServerURL(inputCfgVal);
         msg = "logcloudurl: " + inputCfgVal;
@@ -589,32 +603,68 @@ void setupServer(){
         if(is_int){
           setLogPeriodMins(inputCfgValInt);
           msg = "logperiodmins: "+String(inputCfgValInt);
-        } else
-          msg = "Invalid Input! :(";
+        }
+      // CMD START
       } else if(inputCfgSel == "cmd"){
+        msg = "cmd > unknown cmd! :( " + inputCfgVal;
         if(inputCfgVal.length() == 10 && inputCfgVal == "resetprefs"){
           clearPrefs();
           msg = "cmd resetprefs > done :)";
-        } else if (inputCfgVal.length() > 8 && inputCfgVal.substring(0,8) == "sdimprio") {
+        } 
+        else if (inputCfgVal.length() > 8 && inputCfgVal.substring(0,8) == "resetkey") {
+          bool ret = clearKey(inputCfgVal.substring(9));
+          msg = "cmd resetkey > key: "+inputCfgVal.substring(9)+"  ret: "+String(ret)+"  done :)";
+        }
+        else if (inputCfgVal.length() > 4 && inputCfgVal.substring(0,4) == "setl") {
           //const char * input = inputCfgVal.substring(9,20).c_str();
-          char input[11];
-          inputCfgVal.substring(9,20).toCharArray(input, 11);
-          char* command = strtok(input, " ");
+          char input[NLIGHTS*4+20];
+          inputCfgVal.substring(5).toCharArray(input, NLIGHTS*4+20);
+          char* sub_command = strtok(input, " ");
+          char* val = strtok(NULL, " ");
           int n_vals = 0;
-          int dim_priority_arr_new[NLIGHTS] = {1};
-          while (command != 0)
+          int vals_arr_new[NLIGHTS];
+          fillArray(vals_arr_new, NLIGHTS, 1);
+          String vals_str = String("");
+          while (val != NULL)
           { 
-            //Serial.println("sdp while > " + String(command));
+            //Serial.println("sdp while > " + String(n_vals)+" "+String(val));
             if(n_vals == NLIGHTS) break;
-            dim_priority_arr_new[n_vals] = atoi(command);
+            vals_arr_new[n_vals] = atoi(val);
             n_vals++;
-            command = strtok(0, " ");
+            val = strtok(NULL, " ");
           }
-          setDimPrio(dim_priority_arr_new);
-          msg = "cmd sdimprio > done :)";
-        } else
-          msg = "cmd > unknown cmd! :( " + inputCfgVal;
-      
+          msg = "cmd setl "+String(sub_command)+" > done :)";
+          String sub_cmd_str = String(sub_command);
+          if(sub_cmd_str == "dprio")
+            setDimPrio(vals_arr_new);
+          else if(sub_cmd_str == "startdel")
+            setStartDelayArr(vals_arr_new);
+          else if(sub_cmd_str == "endearly")
+            setEndEarlyArr(vals_arr_new);
+          else if(sub_cmd_str == "startend"){
+            setStartDelayArr(vals_arr_new);
+            setEndEarlyArr(vals_arr_new);
+          } else
+            msg = "cmd setl '"+String(sub_command)+"' > unknown :(";
+          
+        } else if(inputCfgVal.length() > 5 && inputCfgVal.substring(0,5) == "infol"){
+          String sub_command = inputCfgVal.substring(6);
+          int * into_arr_ptr = NULL;
+          if(sub_command == "dprio")
+            into_arr_ptr = dim_priority_arr;
+          else if(sub_command == "startdel")
+            into_arr_ptr = lights_start_delay_mins_arr;
+          else if(sub_command == "endearly")
+            into_arr_ptr = lights_end_early_mins_arr;
+          String vals_str = String("");
+          if (into_arr_ptr != NULL) {
+            for(int i=0; i<NLIGHTS;i++){
+              vals_str += String(into_arr_ptr[i])+" ";
+            }
+            msg = sub_command+" > "+vals_str;
+          }
+        } 
+      // CMD END
       } else
         msg = "setcfg > unknown config: " + inputCfgVal;
     }
@@ -629,9 +679,19 @@ void setupServer(){
     saveLightModes();
     request->send(200, "text/plain", "OK");
   });
-  // save all
+  // silfan
   server.on("/silfan", HTTP_GET, [](AsyncWebServerRequest *request){
     startFanSilentMode();
+    request->send(200, "text/plain", "OK");
+  });
+  // dimonoff
+  server.on("/dimonoff", HTTP_GET, [](AsyncWebServerRequest *request){
+    switchLightStageDim();
+    request->send(200, "text/plain", "OK");
+  });
+  // starendonoff
+  server.on("/starendonoff", HTTP_GET, [](AsyncWebServerRequest *request){
+    switchLightStageCheckStartEnd();
     request->send(200, "text/plain", "OK");
   });
   // favicon

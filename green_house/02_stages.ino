@@ -1,8 +1,6 @@
 // TODO clean up pre-stage vars
-// - state 2 (red mode) vars should be part of light stage - BUG: photo mode at 00:01 is red!
-// - auto dim light, if bellow 20 is auto, eg 2 is 2C above set fan temp; 0 turn it off?
-// - temporary silent mode, fan and light at 80% for 2h? also silent daily time?
-// - auto daily light linear adjust. start and end light + days to transition (with a start date)
+// * call light start end > rise and set , from sun rise/set
+// * sync fan mode with light stage, by having a int var in the StageCfg struct
 
 // TODO remove non obvious savelightmodes
 int selectedStage = 0;
@@ -22,6 +20,7 @@ struct StageCfg {
     // n hours off
     int n_hours_off;
     bool dim_lights;
+    bool check_start_end;
 };
 
 // Config  for all stages
@@ -32,25 +31,28 @@ StageCfg stage_off = {
   {0,0,0,0,0},
   // hour ON and OFF
   0,24,
+  false,
   false
 };
 
 #define NSTAGES 6
 StageCfg all_modes[NSTAGES] {
   { // Stage 1 - grow
-    "Dim OFF",
+    "Seed",
     // PWM for lights
     {0,0,120,120,30},
     // hour ON and OFF
     20,4,
-    false
+    false,
+    true
   },
   { // Stage 2 - flower
-    "Dim ON",
+    "Grow",
     // PWM for lights
-    {255,255,255,255,255},
+    {255,255,255,255,150},
     // hour ON and OFF
     20,6,
+    true,
     true
   },
   { // Stage 3 - open door
@@ -59,6 +61,7 @@ StageCfg all_modes[NSTAGES] {
     {20,20,255,255,15},
     // hour ON and OFF
     0,0,
+    false,
     false
   },
   { // Stage 4 - photo
@@ -67,27 +70,34 @@ StageCfg all_modes[NSTAGES] {
     {0,0,255,255,0},
     // hour ON and OFF
     0,0,
+    false,
     false
   },
   // Stage 5 - OFF
   stage_off,
-  { // Stage 5
+  { // Stage 6
     "ON",
     // PWM for lights
     {255,255,255,255,255},
     // hour ON and OFF
     0,0,
+    false,
     false
   }
 };
 // lights pwm config for state 2 of the light (20 mins bef and after lights on)
-int state_s2_len_mins;// = 15;
-int lights_s2_pwms[NLIGHTS] = {0};
+// int state_s2_len_mins;// = 15;
+// int lights_s2_pwms[NLIGHTS] = {0};
 
 // The temp at which we start to dim the lights
 int start_dim_temp;// = 30;
 
-int dim_priority_arr[NLIGHTS] = {1,1,1,1,1};
+int dim_priority_arr[NLIGHTS];
+
+// both inclusive (light is on)
+int lights_start_delay_mins_arr[NLIGHTS] = {0};// = {15,15,15,15,0};
+//FILLARRAY(dim_priority_arr,1);
+int lights_end_early_mins_arr[NLIGHTS]= {0};
 
 /// Methods
 int StateNum = 0;
@@ -127,15 +137,20 @@ void restoreLightVars(){
   selectedStage = getMemStageVal();
   
   getMemLightModes(all_modes, sizeof(all_modes));
-  //Serial.println("restoreLightModes: Light modes restored! :) size is "+String(sizeof(all_modes)));
 
   max_temp_lights = getLightOffsTempMem();
   start_dim_temp = getStartDimTempMem();
 
-  state_s2_len_mins = getMemState2LenMins();
-  lights_s2_pwms[NLIGHTS-1] = getMemState2RedVal();
+  // state_s2_len_mins = getMemState2LenMins();
+  // lights_s2_pwms[NLIGHTS-1] = getMemState2RedVal();
 
+
+  fillArray(dim_priority_arr, NLIGHTS, 1);
   getMemDimPrioArr(dim_priority_arr, sizeof(dim_priority_arr));
+
+  getMemStartDelayArr(lights_start_delay_mins_arr, sizeof(lights_start_delay_mins_arr));
+
+  getMemEndEarlyArr(lights_end_early_mins_arr, sizeof(lights_end_early_mins_arr));
   // TODORM
   // for(int i=0; i<NLIGHTS;i++){
   //   Serial.println(String(i)+" restoreLightVars > "+String(dim_priority_arr[i]));
@@ -155,38 +170,6 @@ void setLightsOffTemp(int temp){
   max_temp_lights = temp;
   setLightOffsTempMem(temp);
 }
-
-void setState2LenMins(int len_mins){
-  if(len_mins >= 0 && len_mins <= 60){
-    state_s2_len_mins = len_mins;
-    setMemState2LenMins(len_mins);
-  }
-}
-
-void setState2RedVal(int red_val){
-  if(red_val >= 0 && red_val <= MAX_PWM_LIGHTS){
-    lights_s2_pwms[NLIGHTS-1] = red_val;
-    setMemState2RedVal(red_val);
-  }
-}
-
-void processStageState(struct StageCfg stage, int StateNum){
-  int * pwmValsToSet;
-  if(StateNum==1){
-    pwmValsToSet = stage.pwmVals;
-  } else if(StateNum==2){
-    pwmValsToSet = lights_s2_pwms;
-  } else {
-    pwmValsToSet = stage_off.pwmVals;
-  }
-  // only sets the lights, fan is independently controled
-  for(int i=0; i<NLIGHTS;i++){
-    setPwmLightVal(i, pwmValsToSet[i]);
-  }
-}
-
-
-// hour_on  hour_off, n_hours_off //
 
 void setHourOn(int hour_on){
   all_modes[selectedStage].hour_on = hour_on;
@@ -215,13 +198,8 @@ hw_timer_t * timer_open_door = NULL;
 int timer_prev_sel_stage = -1;
 void startOpenDoorTimer(int prev_stage){
   // (re)start alarm to startAutoFan in 20 mins
-  // timerAlarmDisable(timer_open_door);
-  // timerRestart(timer_open_door);
-  // timerAlarmWrite(timer_open_door, 20*600000, false);
-  // timerAlarmEnable(timer_open_door);
 
-  // TODO change to 20
-  triggerTimer(timer_open_door, 1, false);
+  triggerTimer(timer_open_door, 20, false);
   Serial.println("startOpenDoorTimer > timer started");
   
   timer_prev_sel_stage = prev_stage;
@@ -239,119 +217,182 @@ void IRAM_ATTR stopOpenDoorTimer(){
 // So if the temp goes above  'start_temp', we start dimming the lights
 
 // the temp tolerance interval
-float temp_tol = 0.5;
-float tdim_kP = 0.03;
+float temp_tol = 0.3;
+float tdim_kP = 0.015;
 
 void setDimPrio(const int vals[]){
   for(int i=0; i<NLIGHTS;i++){
     dim_priority_arr[i] = vals[i];
-    //Serial.println(String(i)+" setDimPrio > "+String(vals[i]));
   }
   setMemDimPrioArr(dim_priority_arr, sizeof(dim_priority_arr));
 }
 
-void checkTempToDimLights(struct StageCfg stage, float temperature){
-  
-  float temp_err = temperature - start_dim_temp;
-  
-  if(temperature > start_dim_temp && dim_ratio > 0.0){
-    dim_ratio = max(float(0.0), dim_ratio-(tdim_kP*temp_err));
-  } else if(temperature < (start_dim_temp-temp_tol) && dim_ratio < 1.0){
-    dim_ratio = min(float(1.0), dim_ratio-(tdim_kP*(temp_err+temp_tol)) );
+void switchLightStageDim(){
+  if(all_modes[selectedStage].dim_lights == true){
+    all_modes[selectedStage].dim_lights = false;
   } else {
-    return;  
+    all_modes[selectedStage].dim_lights = true;
   }
-  //Serial.println("diming lights > dim_ratio " + String(dim_ratio));
-    
-  // // only sets the lights, fan is independently controled
-  // for(int i=0; i<NLIGHTS;i++){
-  //   if(stage.pwmVals[i] > 0)
-  //     setPwmLightVal(i, int(dim_ratio*stage.pwmVals[i]));
-  // }
+}
 
-  /////
+bool getLightStageDim(){
+  return all_modes[selectedStage].dim_lights;
+}
+
+int getStartDimTempInC(){
+  if (start_dim_temp < min_fan_goal_temp){ 
+    // automatic start_dim_temp
+    return main_fan_goal_temp + start_dim_temp;
+  } else {
+    return start_dim_temp;
+  }
+}
+
+bool checkTempToDimLights(int non_dim_light_vals[], float temperature, int dim_pwm_vals[]){
+  // return: if pwm were updated or not
+
+  int start_dim_temp_C = getStartDimTempInC(); // in celcious
+
+  // Serial.print("checkTempToDimLights > non_dim_light_vals - ");
+  // for(int i=0; i<NLIGHTS;i++) Serial.print(" "+String(non_dim_light_vals[i]));
+  // Serial.println(" ");
+  float temp_err = temperature - start_dim_temp_C;
+  
+  if(temperature > start_dim_temp_C && dim_ratio > 0.0){
+    dim_ratio = max(float(0.0), dim_ratio-(tdim_kP*temp_err));
+  } else if(temperature < (start_dim_temp_C-temp_tol) && dim_ratio < 1.0){
+    dim_ratio = min(float(1.0), dim_ratio-(tdim_kP*(temp_err+temp_tol)) );
+  } else if (dim_ratio == 1.0) {
+    return false;  
+  }
+
   float pri_2_sum_light = 0;
-  //int pri_2_c = 0;
   float pri_0_sum_light = 0;
-  //int pri_0_c = 0;
   for(int i=0; i<NLIGHTS;i++){
     if(dim_priority_arr[i] == 2){
-      pri_2_sum_light += stage.pwmVals[i];
+      pri_2_sum_light += non_dim_light_vals[i];
       //pri_2_c++;
     } else if(dim_priority_arr[i] == 0){
-      pri_0_sum_light += stage.pwmVals[i];
+      pri_0_sum_light += non_dim_light_vals[i];
       //pri_0_c++;
     } 
   }
-  // if(pri_2_c > 0)
-  //   pri_2_sum_light = pri_2_sum_light/pri_2_c;
-
-  // if(pri_0_c > 0)
-  //   pri_0_sum_light = pri_0_sum_light/pri_0_c;
 
   float dim_ratio_split = 0.5;
   if(pri_0_sum_light > 0 || pri_2_sum_light > 0)
     dim_ratio_split = pri_0_sum_light/(pri_0_sum_light+pri_2_sum_light);
 
-  
-  // Serial.println("diming lights > pri_0_avg_light " + String(pri_0_avg_light)
-  // +" > pri_2_avg_light " + String(pri_2_avg_light)
-  // +" > dim_ratio_split " + String(dim_ratio_split)
-  // );
-
-  // float map_dim_ratio;
-  // if(dim_ratio >= dim_ratio_split){
-  //   // diming 1st diming lights
-  //   map_dim_ratio = (dim_ratio-dim_ratio_split)/(1.0-dim_ratio_split);
-  //   for(int i=0; i<NLIGHTS;i++){
-  //     if(stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 2) )
-  //       setPwmLightVal(i, int(map_dim_ratio*stage.pwmVals[i]));
-  //   }
-  // } else {
-  //   // diming the rest of the lights
-  //   map_dim_ratio = dim_ratio/dim_ratio_split;
-  //   for(int i=0; i<NLIGHTS;i++){
-  //     if(stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 0) )
-  //       setPwmLightVal(i, int(map_dim_ratio*stage.pwmVals[i]));
-  //     else if (stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 2) )
-  //       setPwmLightVal(i, 0);
-  //   }
-  // }
-  // for(int i=0; i<NLIGHTS;i++){
-  //   if(stage.pwmVals[i] > 0 && (dim_priority_arr[i] == 1) )
-  //     setPwmLightVal(i, int(dim_ratio*stage.pwmVals[i]));
-  // }
-  ///// OR
-  pwmValsInfo pwmInfo = getPwmVals();
   float map_dim_ratio_ab = max(double(0.0), (dim_ratio-dim_ratio_split)/(1.0-dim_ratio_split) );
   float map_dim_ratio_bl = min(float(1.0), dim_ratio/dim_ratio_split );
 
   //Serial.println("diming lights > map_dim_ratio_ab " + String(map_dim_ratio_ab)+" > map_dim_ratio_bl " + String(map_dim_ratio_bl));
   for(int i=0; i<NLIGHTS;i++){
-    if(stage.pwmVals[i] > 0){
-      int light_val = -1;
+    if(non_dim_light_vals[i] > 0){
+      int light_val = 0;
       if(dim_priority_arr[i] == 1){
-        light_val = int(dim_ratio*stage.pwmVals[i]);
+        light_val = int(dim_ratio*non_dim_light_vals[i]);
       } else if(dim_priority_arr[i] == 2){
         if (dim_ratio >= dim_ratio_split)
-          light_val = int(map_dim_ratio_ab*stage.pwmVals[i]);
+          light_val = int(map_dim_ratio_ab*non_dim_light_vals[i]);
         else
           light_val = 0;
-      } else if(dim_priority_arr[i] == 0 && dim_ratio < dim_ratio_split ) {
-        light_val = int(map_dim_ratio_bl*stage.pwmVals[i]);
+      } else if(dim_priority_arr[i] == 0) {
+        if (dim_ratio < dim_ratio_split )
+          light_val = int(map_dim_ratio_bl*non_dim_light_vals[i]);
+        else
+          light_val = non_dim_light_vals[i];
       }
-      //Serial.println( String(i)+"diming lights > " + String(light_val));
-      if((light_val != -1) && (light_val != pwmInfo.vals[i]))
-        setPwmLightVal(i, light_val);
-    }
+      
+      dim_pwm_vals[i] = light_val;
+    } else
+      dim_pwm_vals[i] = 0;
   }
-
+  return true; 
 }
 
 void setStartDimTemp(int new_val){
   start_dim_temp = new_val;
   setStartDimTempMem(start_dim_temp);
 }
+
+
+// PROCESS STAGE
+// START END LIGHTS
+
+void setStartDelayArr(const int vals[]){
+  for(int i=0; i<NLIGHTS;i++){
+    lights_start_delay_mins_arr[i] = vals[i];
+  }
+  setMemStartDelayArr(lights_start_delay_mins_arr, sizeof(lights_start_delay_mins_arr));
+}
+
+void setEndEarlyArr(const int vals[]){
+  for(int i=0; i<NLIGHTS;i++){
+    lights_end_early_mins_arr[i] = vals[i];
+  }
+  setMemEndEarlyArr(lights_end_early_mins_arr, sizeof(lights_end_early_mins_arr));
+}
+
+void switchLightStageCheckStartEnd(){
+  if(all_modes[selectedStage].check_start_end == true){
+    all_modes[selectedStage].check_start_end = false;
+  } else {
+    all_modes[selectedStage].check_start_end = true;
+  }
+}
+
+bool getLightStageCheckStartEnd(){
+  return all_modes[selectedStage].check_start_end;
+}
+
+void processStageState(struct StageCfg stage, int StateNum, int minsIn, float temperature, bool is_state_change){
+  int * pwmValsToSet;
+  int lights_start_end_pwm_vals[NLIGHTS];
+  //Serial.println("processStageState > minsIn "+String(minsIn)+" stage.check_start_end "+String(stage.check_start_end));
+  if(StateNum==1){
+
+    if(stage.check_start_end){
+      int minTillEnd = ((24-stage.n_hours_off)*60) - minsIn;
+      //Serial.println("processStageState > minTillEnd "+String(minTillEnd));
+      for(int i=0; i<NLIGHTS;i++){
+        if(minsIn >= lights_start_delay_mins_arr[i] && minTillEnd >= lights_end_early_mins_arr[i])
+          lights_start_end_pwm_vals[i] = stage.pwmVals[i];
+        else
+          lights_start_end_pwm_vals[i] = stage_off.pwmVals[i];
+      }
+      pwmValsToSet = lights_start_end_pwm_vals;
+    } else{
+      //Serial.println("processStageState > NOT check_start_end");
+      pwmValsToSet = stage.pwmVals;
+    }
+
+  } else {
+    pwmValsToSet = stage_off.pwmVals;
+  }
+  //Serial.print("processStageState > pwmValsToSet - ");
+  //for(int i=0; i<NLIGHTS;i++) Serial.print(" "+String(pwmValsToSet[i]));
+  //Serial.println(" ");
+
+  int dim_pwm_vals[NLIGHTS];
+  if(!isnan(temperature) && stage.dim_lights && StateNum == 1 && !is_state_change){
+    bool dim_on = checkTempToDimLights(pwmValsToSet, temperature, dim_pwm_vals);
+    //Serial.println("processStageState > dimming "+String(dim_on));
+    if (dim_on)
+      pwmValsToSet = dim_pwm_vals;
+  } 
+
+  //Serial.println("processStageState > setting pwm ");
+  pwmValsInfo pwmInfo = getPwmVals();
+  for(int i=0; i<NLIGHTS;i++){
+    //Serial.print(String(pwmValsToSet[i])+" ");
+    if(pwmValsToSet[i] != pwmInfo.vals[i])
+      //Serial.println("processStageState > setting pwm "+String(i));
+      setPwmLightVal(i, pwmValsToSet[i]);
+  }
+  //Serial.println(" ");
+}
+
+
 // STAGE - Lights //
 
 int prev_StateNum = -1;
@@ -361,7 +402,7 @@ void updateStage(float temperature){
   //float temperature = readDHTTemperature();
   if(!isnan(temperature) && temperature > max_temp_lights){
     // turns off the lights by forcing the state to 0
-    processStageState(selStageCfg, 0);
+    processStageState(selStageCfg, 0, 0, NAN, true);
     prev_StateNum = 0;
     Serial.println("updateStage > TEMPS ABOVE " + String(max_temp_lights) +" (" +String(temperature) + ") LIGHTS OFF!");
     return; 
@@ -371,27 +412,39 @@ void updateStage(float temperature){
   getHourMin(&hour, &mins);
   //Serial.println("Updating stage > h:"+String(hour)+" m:"+String(mins));
   StateNum = 0;
+
+
+  int minsOn = 0;
   // Determining the state of the stage
-  if (selStageCfg.n_hours_off == 0) {
-    StateNum = 1;
-  } else if (selStageCfg.n_hours_off == 24) {
+  // if (selStageCfg.n_hours_off == 0) {
+  //   StateNum = 1;
+  // } else 
+  if (selStageCfg.n_hours_off == 24) {
     StateNum = 0;
   } else {
     // Checks if the selected stage is ON
     int hour_off = getHourOff(selStageCfg);
     int hour_on = selStageCfg.hour_on;
     //Serial.println("Updating stage: on "+String(hour_on)+"  off "+String(hour_off));
-    if(hour_on <= hour_off){
-      if(hour >= hour_on && hour < hour_off)
+    if(hour_on < hour_off){
+      if(hour >= hour_on && hour < hour_off){
         StateNum = 1;
+        minsOn = (hour-hour_on)*60+mins;
+      }
     } else {
-      if(hour >= hour_on || hour < hour_off)
+      if(hour >= hour_on){
         StateNum = 1;
+        minsOn = (hour-hour_on)*60+mins;
+      } else if (hour < hour_off){
+        StateNum = 1;
+        minsOn = (24-hour_on+hour)*60+mins;
+      }
     }
-    // pre-state
-    if((hour == hour_on && mins < state_s2_len_mins) || ((hour == hour_off && mins < state_s2_len_mins)))
-      StateNum = 2;
+    // // pre-state
+    // if((hour == hour_on && mins < state_s2_len_mins) || ((hour == hour_off && mins < state_s2_len_mins)))
+    //   StateNum = 2;
   }
+  //Serial.println("updateStage > h:"+String(hour)+" m:"+String(mins)+" StateNum: "+String(StateNum)+" temp: "+String(temperature));
   // Precessing the stage's state
   if(StateNum != prev_StateNum || selectedStage != prev_selectedStage) {
 //    if(StateNum != 1 && prev_StateNum == 1 && selectedStage == prev_selectedStage){
@@ -407,94 +460,21 @@ void updateStage(float temperature){
     if(selStageCfg.dim_lights && StateNum == 1){
       dim_ratio = 1.0;
     }
-    processStageState(selStageCfg, StateNum);
+
+    processStageState(selStageCfg, StateNum, minsOn, temperature, true);
     Serial.printf("%ih: Stage updated %i->%i state %s->%s\n", 
       hour, prev_selectedStage, selectedStage, 
       prev_StateNum?"ON":"OFF", StateNum?"ON":"OFF"
     );
     prev_StateNum = StateNum;
     prev_selectedStage = selectedStage;
-  } else if (!isnan(temperature) && selStageCfg.dim_lights && StateNum == 1){
-    checkTempToDimLights(selStageCfg, temperature);
-  }
+  } else if( StateNum == 1 && (selStageCfg.dim_lights || selStageCfg.check_start_end))
+  // if (!isnan(temperature) && selStageCfg.dim_lights && StateNum == 1){
+  //   checkTempToDimLights(selStageCfg.pwmVals, temperature);
+  // }
+     processStageState(selStageCfg, StateNum, minsOn, temperature, false);
 }
 
-/*
-void sunRise(struct StageCfg selStageCfg){
-
-    // 2 min
-  int sunRiseLenght = 2*60000;
-  // half the time for red rise
-  int sunRedLenght = sunRiseLenght/2.0;
-  int maxRedLightVal = selStageCfg.pwmVals[NLIGHTS-1];
-  int initRedLightVal = 6;
-  int minAdjustDelayRed = sunRedLenght / (maxRedLightVal -initRedLightVal);
-
-  Serial.println("SunRise: starting red at "+String(minAdjustDelayRed)+" ms; red len: "+String(sunRedLenght)+" ms");
-  
-  for(int i=initRedLightVal; i<maxRedLightVal;i++){
-    // setting red light pwm
-    setPwmLightVal(NLIGHTS-1, i);
-    Serial.print(String(i)+" ");
-    delay(minAdjustDelayRed);
-  }
-  // computing the max light val
-  int maxLightVal = 0;
-  for(int i=0; i<NLIGHTS;i++){
-    if(selStageCfg.pwmVals[i] > maxLightVal){
-      maxLightVal = selStageCfg.pwmVals[i] ;
-    }
-  }
-  
-  int sunWhiteRiseLenght = sunRiseLenght - sunRedLenght;
-  int initLightVal = 6;
-  int minAdjustDelay = sunWhiteRiseLenght / (maxLightVal-initLightVal);
-  
-  Serial.println("SunRise: starting at "+String(minAdjustDelay)+" ms; len: "+String(sunRiseLenght)+" ms");
-
-  for(int i=initLightVal; i<maxLightVal;i++){
-
-    (i / float(maxLightVal))*;
-
-    // only sets the lights, fan is independently controled
-    for(int j=0; j<NLIGHTS-1;j++){
-
-      int ithLightPwm = initLightVal + ( (i-initLightVal)*(selStageCfg.pwmVals[j] / float(maxLightVal) ) ) ;
-      
-      setPwmLightVal(j, ithLightPwm);
-    }
-    Serial.print(String(i)+" ");
-    delay(minAdjustDelay);
-  }
-}
-
-*/
-// sensorPin event
-//const int sensorPin = 27;
-//void IRAM_ATTR attachHaddler() {
-//  Serial.println("event sensor");
-//}
-//
-// Semaphores for var access syncronization
-// volatile int var_to_sync;
-//portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
-//portENTER_CRITICAL_ISR(&timerMux);
-//var_to_sync++;
-//portEXIT_CRITICAL_ISR(&timerMux);
-//
-// attachInterrupt example
-//  // button mode INPUT, INPUT_PULLUP: no need for 5v
-//  pinMode(sensorPin, INPUT_PULLUP);
-//  // CHANGE or RISING mode
-//  attachInterrupt(digitalPinToInterrupt(sensorPin), attachHaddler, CHANGE);
-
-
-//hw_timer_t * timer = NULL;
-//
-//void IRAM_ATTR timerHandler() {
-//  //if(time_failed)
-//  updateStage();
-//}
 
 void setupStages(){
   restoreLightVars();

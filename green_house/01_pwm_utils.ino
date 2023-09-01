@@ -18,6 +18,14 @@ const int freq_lights = 300;
 // https://www.mikrocontroller.net/attachment/361299/noctua_nf_a14_industrialPPC_3000_pwm_specs_en.pdf
 const int freq_fans = 10000;
 
+// server methods
+struct pwmValsInfo {
+    //const char pwmNames[NPWMS][2] = {"L", "R", "u", "r", "i", "f"};
+    const char pwmNames[NPWMS][2] = {"L", "R", "F", "B", "r", "f"};
+    int vals[NPWMS];
+    size_t lenght;
+};
+
 /*/ TODO
 int pwmChannelFan = 5;
 int pwmPinFan = 23;
@@ -68,14 +76,6 @@ void PinSetup(int freq, int channel, int pin) {
 void PinWrite(int channel, int dutyCycle) {
   ledcWrite(channel, dutyCycle);
 }
-
-// server methods
-struct pwmValsInfo {
-    const char pwmNames[NPWMS][2] = {"L", "R", "u", "r", "i", "f"};
-    int vals[NPWMS];
-    size_t lenght;
-};
-
 
 struct pwmValsInfo getPwmVals(){
   pwmValsInfo pwmInfo;

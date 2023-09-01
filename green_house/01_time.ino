@@ -101,12 +101,18 @@ hw_timer_t * setupTimer(uint8_t timer, void (*fn)(void)){
   return hw_timer;
 }
 
+void disableTimer(hw_timer_t * hw_timer){
+  timerAlarmDisable(hw_timer);
+  timerRestart(hw_timer);
+}
+
 void triggerTimer(hw_timer_t * hw_timer, int n_mins, bool autoreload){
   // triggers the timer in n_mins mins
   // autoreload: repeats the timer, every n_mins
 
-  timerAlarmDisable(hw_timer);
-  timerRestart(hw_timer);
+  // timerAlarmDisable(hw_timer);
+  // timerRestart(hw_timer);
+  disableTimer(hw_timer);
   timerAlarmWrite(hw_timer, n_mins*600000, autoreload);
   timerAlarmEnable(hw_timer);
 }

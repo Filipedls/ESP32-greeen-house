@@ -4,8 +4,6 @@
 //   * add top secttion with main comments and ideas implemented
 //   * add a 00_config file
 
-#define ELEMENTS(x)   (sizeof(x) / sizeof(x[0]))
-
 void setup(){
   // Serial port for debugging purposes
   Serial.begin(115200);

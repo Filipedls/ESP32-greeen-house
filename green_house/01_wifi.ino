@@ -26,7 +26,7 @@ void connectWiFi(){
   IPAddress subnet(255, 255, 255, 0);
   IPAddress dns(1, 1, 1, 1);
   // Connect to Wi-Fi
-  Serial.print("starting... SSID: " + ssid + "  P: " + password); 
+  Serial.print("starting... SSID: " + ssid + "  P: " + password +" "); 
 
   if(!WiFi.config(local_IP, gateway, subnet, dns)) {
     Serial.println("/!\ STA Failed to configure!");
@@ -108,7 +108,7 @@ void setupWiFi(){
   connectWiFi();
   while (WiFi.status() != WL_CONNECTED){
     Serial.print(".");
-    delay(800);
+    delay(500);
   }
   delay(500);
 }

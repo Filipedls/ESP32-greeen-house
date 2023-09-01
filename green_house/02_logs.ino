@@ -1,5 +1,5 @@
 // TODO log buffer, for when it fails
-// * log interval config
+// * log buffer array, for when the log call fails
 // * On, Off, watering, other (with text field), etc events log
 
 #include <WiFi.h>

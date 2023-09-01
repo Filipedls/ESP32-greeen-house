@@ -75,23 +75,23 @@ void setLightOffsTempMem(int temp){
   prefs.putInt(lights_off_temp_key, temp);
 }
 
-// State2RedVal
-const char* state_s2_redv_key = "lights2rv";
-int getMemState2RedVal(){
-  return prefs.getInt(state_s2_redv_key, 20);
-}
-void setMemState2RedVal(int val){
-  prefs.putInt(state_s2_redv_key, val);
-}
+// // State2RedVal
+// const char* state_s2_redv_key = "lights2rv";
+// int getMemState2RedVal(){
+//   return prefs.getInt(state_s2_redv_key, 20);
+// }
+// void setMemState2RedVal(int val){
+//   prefs.putInt(state_s2_redv_key, val);
+// }
 
-// state_2_len_mins
-const char* state_2_len_mins_key = "lights2lm";
-int getMemState2LenMins(){
-  return prefs.getInt(state_2_len_mins_key, 15);
-}
-void setMemState2LenMins(int len_mins){
-  prefs.putInt(state_2_len_mins_key, len_mins);
-}
+// // state_2_len_mins
+// const char* state_2_len_mins_key = "lights2lm";
+// int getMemState2LenMins(){
+//   return prefs.getInt(state_2_len_mins_key, 15);
+// }
+// void setMemState2LenMins(int len_mins){
+//   prefs.putInt(state_2_len_mins_key, len_mins);
+// }
 
 // Dim priority
 const char* dim_prio_key = "dimp";
@@ -103,16 +103,32 @@ void setMemDimPrioArr(void * obj, int  size_obj){
   setArray(obj, size_obj, dim_prio_key);
 }
 void getMemDimPrioArr(void * object, size_t sizeof_object){
-  // size_t schLen = prefs.getBytes(dim_prio_key, NULL, NULL);
-  // //Serial.println("getStruct: size is "+String(schLen)+" "+String(sizeof_object));
-  // if(schLen == 0 || schLen != sizeof_object)
-  //   return;
-    
-  // char cbuffer[schLen]; // prepare a buffer for the data
-  // prefs.getBytes(dim_prio_key, cbuffer, schLen);
-  // memcpy(object, cbuffer, schLen);
-
   getArray(object, sizeof_object, dim_prio_key);
+}
+
+// Start Delay / End Early
+const char* start_del_key = "lstartdel";
+void setMemStartDelayArr(void * obj, int  size_obj){
+  // //prefs.putBytes(lights_key, vals, n_vals*sizeof(int));
+  //prefs.putBytes(dim_prio_key, obj, size_obj);
+  //Serial.println("setStruct: size is "+String(size_obj));
+
+  setArray(obj, size_obj, start_del_key);
+}
+void getMemStartDelayArr(void * object, size_t sizeof_object){
+  getArray(object, sizeof_object, start_del_key);
+}
+
+const char* end_early_key = "lendear";
+void setMemEndEarlyArr(void * obj, int  size_obj){
+  // //prefs.putBytes(lights_key, vals, n_vals*sizeof(int));
+  //prefs.putBytes(dim_prio_key, obj, size_obj);
+  //Serial.println("setStruct: size is "+String(size_obj));
+
+  setArray(obj, size_obj, end_early_key);
+}
+void getMemEndEarlyArr(void * object, size_t sizeof_object){
+  getArray(object, sizeof_object, end_early_key);
 }
 
 // ==> FAN
@@ -296,8 +312,16 @@ int getLogPeriodMins(){
 void setMemLogPeriodMins(int val){
   prefs.putInt(log_period_mins_key, val);
 }
+
+// UTILS
+
 void clearPrefs(){
   prefs.clear();
+}
+
+// remove
+bool clearKey(String key){
+  return prefs.remove(key.c_str());
 }
 
 void checkBootButtonClearPrefs(){
